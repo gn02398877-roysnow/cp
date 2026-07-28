@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>中職預測王 - 管理者後台</title>
+    <style>
+        body { font-family: sans-serif; background: #fdf6f0; color: #333; padding: 20px; }
+        .admin-box { max-width: 600px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        h1 { color: #d9534f; text-align: center; }
+        .game-result-input { margin-bottom: 20px; padding: 15px; border: 1px dashed #ccc; background: #fffdfa; }
+        label { font-weight: bold; display: block; margin-bottom: 8px; }
+        button { width: 100%; padding: 12px; background: #d9534f; color: white; border: none; border-radius: 4px; font-size: 1.1em; cursor: pointer; }
+        button:hover { background: #c9302c; }
+    </style>
+</head>
+<body>
+
+<div class="admin-box">
+    <h1>⚙️ 管理者賽果結算系統</h1>
+    <p style="text-align: center; color: #666;">請在此輸入今日各場次的實際獲勝隊伍</p>
+    
+    <form id="result-form">
+        <!-- 假設今日有兩場比賽，管理者手動選擇誰贏了 -->
+        <div class="game-result-input">
+            <label>【場次 1】實際獲勝隊伍：</label>
+            <select class="actual-winner" data-game-id="1" required>
+                <option value="">-- 請選擇贏家 --</option>
+                <option value="中信兄弟">中信兄弟</option>
+                <option value="味全龍">味全龍</option>
+                <option value="和局">和局 / 因雨裁定不計分</option>
+            </select>
+        </div>
+
+        <div class="game-result-input">
+            <label>【場次 2】實際獲勝隊伍：</label>
+            <select class="actual-winner" data-game-id="2" required>
+                <option value="">-- 請選擇贏家 --</option>
+                <option value="統一獅">統一獅</option>
+                <option value="樂天桃猿">樂天桃猿</option>
+                <option value="和局">和局 / 因雨裁定不計分</option>
+            </select>
+        </div>
+
+        <button type="submit">確認結算並更新分數</button>
+    </form>
+</div>
+
+<script>
+    document.getElementById('result-form').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        // 1. 撈出管理者輸入的正確賽果
+        let results = {};
+        document.querySelectorAll('.actual-winner').forEach(select => {
+            const gameId = select.getAttribute('data-game-id');
+            results[gameId] = select.value;
+        });
+
+        alert("已送出今日賽果！系統正在核對六人預測中...");
+
+        // 2. 自動核對邏輯 (核心虛擬碼範例)
+        /*
+           撈取資料庫中 柚子、喜德 等人今天的 predictions
+           令 player.todayScore = 0;
+           
+           for 每一場比賽:
+               if (player的預測 == results[gameId]) {
+                   player.todayScore += 1; // 猜對一場加一分，兩場加兩分
+               }
+           
+           最後把 player.totalScore += player.todayScore 更新回資料庫！
+        */
+        
+        console.log("今日正確答案為:", results);
+        alert("分數結算成功！排行榜已自動更新。");
+    });
+</script>
+</body>
+</html>
