@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CPBL 中職勝場預測王</title>
+    <!-- 載入 Firebase 必要的 SDK (v9 相容版) -->
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
     <style>
@@ -77,12 +78,14 @@
                 <th>總命中勝場數</th>
             </tr>
         </thead>
-        <tbody id="scoreboard"></tbody>
+        <tbody id="scoreboard">
+            <tr><td colspan="3" style="color:gray;">正在載入排行榜...</td></tr>
+        </tbody>
     </table>
 </div>
 
 <script>
-    // ⚠️ 貼上你的 Firebase 設定金鑰 ⚠️
+    // ⚠️ 請務必在此處替換成你在 Firebase 取得的「真正」連接金鑰 ⚠️
     const firebaseConfig = {
         apiKey: "YOUR_API_KEY",
         authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
@@ -92,27 +95,44 @@
         appId: "YOUR_APP_ID"
     };
     
+    // 初始化 Firebase
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
 
-    const todayStr = new Date().toLocaleDateString('zh-TW', {timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit'}).replace(/\//g, '-');
+    // 統一格式化台北時間的日期 (格式如：2026-07-29)，用來跟自動爬蟲對齊 Document ID
+    function getTaipeiDateString() {
+        const d = new Date();
+        const utc = d.getTime() + (d.getTimezoneOffset() * 60000);
+        const nd = new Date(utc + (3600000 * 8)); // 強制轉換為台北時間 GMT+8
+        const year = nd.getFullYear();
+        const month = String(nd.getMonth() + 1).padStart(2, '0');
+        const day = String(nd.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    }
 
+    const todayStr = getTaipeiDateString();
+
+    // 頁面載入完成後的初始化作業
     function initPage() {
+        // 顯示前端網頁上的視覺日期
         const today = new Date();
         const dateString = today.toLocaleDateString('zh-TW', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
         document.getElementById('current-date').innerText = `📅 今天是：${dateString}`;
 
+        // 啟動連線讀取
         loadGamesFromFirebase();
         loadScoreboard();
     }
 
+    // 從資料庫中的 'daily_games' 集合讀取今天自動抓取的比賽
     function loadGamesFromFirebase() {
+        const gamesList = document.getElementById('games-list');
+        const predictChoices = document.getElementById('predict-choices');
+
         db.collection('daily_games').doc(todayStr).get().then((doc) => {
-            const gamesList = document.getElementById('games-list');
-            const predictChoices = document.getElementById('predict-choices');
-            
+            // 如果查無此文件，或是內無比賽資料
             if (!doc.exists || !doc.data().games || doc.data().games.length === 0) {
-                gamesList.innerHTML = '<div class="no-game">今日尚無比賽 🛌</div>';
+                gamesList.innerHTML = '<div class="no-game">今日尚無比賽 🛌<br><small style="color:#bbb; font-size:0.7em;">查詢日期: '+todayStr+'</small></div>';
                 predictChoices.innerHTML = '<p style="color:gray;">今天沒比賽，不用預測。</p>';
                 document.getElementById('submit-btn').disabled = true;
                 return;
@@ -122,6 +142,7 @@
             predictChoices.innerHTML = '';
             const todayGames = doc.data().games;
 
+            // 循環渲染每一場賽事卡片與對應的下拉選單
             todayGames.forEach((game, index) => {
                 gamesList.innerHTML += `
                     <div class="game-card">
@@ -145,22 +166,38 @@
                     </div>
                 `;
             });
+            // 成功加載賽事後，開放送出預測按鈕
             document.getElementById('submit-btn').disabled = false;
+        }).catch((error) => {
+            console.error("讀取賽事失敗:", error);
+            gamesList.innerHTML = '<div class="no-game" style="color:red;">連線至資料庫失敗，請檢查金鑰設定或權限。</div>';
         });
     }
 
+    // 從資料庫中的 'user' 集合讀取死黨分數排行榜
     function loadScoreboard() {
+        const scoreboard = document.getElementById('scoreboard');
+        // 使用 onSnapshot 監聽，只要資料庫分數一改，網頁排行榜會秒更新
         db.collection('user').orderBy('score', 'desc').onSnapshot((snapshot) => {
-            const scoreboard = document.getElementById('scoreboard');
             scoreboard.innerHTML = '';
             let rank = 1;
             snapshot.forEach((doc) => {
                 const userData = doc.data();
-                scoreboard.innerHTML += `<tr><td>${rank++}</td><td>${doc.id}</td><td><strong>${userData.score}</strong> 分</td></tr>`;
+                scoreboard.innerHTML += `
+                    <tr>
+                        <td>${rank++}</td>
+                        <td>${doc.id}</td>
+                        <td><strong>${userData.score}</strong> 分</td>
+                    </tr>
+                `;
             });
+        }, (error) => {
+            console.error("讀取排行榜失敗:", error);
+            scoreboard.innerHTML = '<tr><td colspan="3" style="color:red;">載入分數失敗，請檢查 Firebase 規則。</td></tr>';
         });
     }
 
+    // 監聽登記預測表單送出事件
     document.getElementById('prediction-form').addEventListener('submit', function(e) {
         e.preventDefault();
         const player = document.getElementById('player').value;
@@ -171,13 +208,23 @@
             choices[select.getAttribute('data-game-id')] = select.value;
         });
 
+        // 將個人的今日預測存進 'predictions' 集合，Document ID 範例: 2026-07-29_柚子
         db.collection('predictions').doc(`${todayStr}_${player}`).set({
-            player: player, password: password, choices: choices, date: todayStr
+            player: player,
+            password: password,
+            choices: choices,
+            date: todayStr
         })
-        .then(() => alert(`🎉 ${player}！你的今日預測已成功登記！`))
-        .catch(() => alert("登記失敗，請檢查網路。"));
+        .then(() => {
+            alert(`🎉 ${player}！你的今日預測已成功登記！`);
+        })
+        .catch((error) => {
+            console.error("登記預測失敗:", error);
+            alert("登記失敗，請檢查網路連線。");
+        });
     });
 
+    // 網頁開起來後立即執行
     window.onload = initPage;
 </script>
 </body>
