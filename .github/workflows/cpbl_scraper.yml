@@ -1,0 +1,68 @@
+name: CPBL Auto Scraper
+
+on:
+  schedule:
+    # 每天國際標準時間 04:30 (台灣時間中午 12:30) 自動執行
+    - cron: '30 4 * * *'
+  workflow_dispatch: # 讓你可以手動在 GitHub 按按鈕立刻執行測試
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      - name: Install Dependencies
+        run: npm install axios jsdom firebase-admin
+
+      - name: Run Scraper
+        env:
+          FIREBASE_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          node -e "
+          const axios = require('axios');
+          const { JSDOM } = require('jsdom');
+          const admin = require('firebase-admin');
+
+          const serviceAccount = JSON.parse(process.env.FIREBASE_KEY);
+          admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
+          const db = admin.firestore();
+
+          async function scrape() {
+            try {
+              const res = await axios.get('https://www.cpbl.com.tw/', {
+                headers: { 'User-Agent': 'Mozilla/5.0' }
+              });
+              const dom = new JSDOM(res.data);
+              const doc = dom.window.document;
+
+              const gameElements = doc.querySelectorAll('.index_schedule_item, .schedule_box, .game_item');
+              let gamesData = [];
+
+              gameElements.forEach((el) => {
+                const awayTeam = el.querySelector('.away .team_name')?.textContent?.trim() || '客隊';
+                const homeTeam = el.querySelector('.home .team_name')?.textContent?.trim() || '主隊';
+                const venue = el.querySelector('.venue')?.textContent?.trim() || '未定球場';
+                const awayPitcher = el.querySelector('.away .pitcher')?.textContent?.trim() || '未定';
+                const homePitcher = el.querySelector('.home .pitcher')?.textContent?.trim() || '未定';
+                
+                gamesData.push({ awayTeam, awayPitcher, homeTeam, homePitcher, venue });
+              });
+
+              const todayStr = new Date().toLocaleDateString('zh-TW', {timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit'}).replace(/\//g, '-');
+              
+              await db.collection('daily_games').doc(todayStr).set({ games: gamesData });
+              console.log('成功自動導入今日賽事：', gamesData.length, '場');
+            } catch (err) {
+              console.error('抓取失敗:', err);
+              process.exit(1);
+            }
+          }
+          scrape();
+          "
