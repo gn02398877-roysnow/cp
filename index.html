@@ -10,7 +10,8 @@
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f4f7f6; color: #333; margin: 0; padding: 20px; }
         .container { max-width: 800px; margin: 0 auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
-        h1, h2 { text-align: center; color: #002d56; }
+        h1, h2 { text-align: center; color: #002d56; margin-bottom: 5px; }
+        .date-display { text-align: center; color: #666; font-size: 1.1em; margin-bottom: 25px; font-weight: 500; }
         .game-card { border: 2px solid #e0e0e0; border-radius: 8px; padding: 20px; margin-bottom: 20px; background: #fafafa; }
         .game-info { display: flex; justify-content: space-between; align-items: center; font-size: 1.1em; }
         .team { width: 40%; text-align: center; font-weight: bold; }
@@ -32,6 +33,7 @@
 
 <div class="container">
     <h1>⚾ CPBL 今日賽事預測</h1>
+    <div class="date-display" id="current-date">📅 讀取日期中...</div>
     
     <div id="games-section">
         <h2>今日賽事</h2>
@@ -77,13 +79,13 @@
             </tr>
         </thead>
         <tbody id="scoreboard">
-            <!-- 這裡會從 Firebase 資料庫即時載入 -->
+            <!-- 從 Firebase 'user' 集合即時載入 -->
         </tbody>
     </table>
 </div>
 
 <script>
-    // ⚠️ 請在此處替換成你在 Firebase 取得的設定金鑰 ⚠️
+    // ⚠️ 請記得替換成你的 Firebase 設定金鑰 ⚠️
     const firebaseConfig = {
         apiKey: "YOUR_API_KEY",
         authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
@@ -93,29 +95,38 @@
         appId: "YOUR_APP_ID"
     };
     
-    // 初始化 Firebase
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
 
-    // 每天中午你或管理者可以在這裡更新當天的比賽資訊
-    // 欄位的 id 固定用 "game1", "game2" 即可，要與 cp.html 對應
+    // 🎯 每天需要在此處手動更新當天/明天的比賽資訊！
+    // 欄位 id 請固定用 "game1", "game2", "game3"... 依此類推
     const todayGames = [
         {
             id: "game1",
-            awayTeam: "中信兄弟", awayPitcher: "德保拉", awayEra: "3.25",
-            homeTeam: "味全龍", homePitcher: "鋼龍", homeEra: "2.88",
-            venue: "臺北大巨蛋"
+            awayTeam: "味全龍", awayPitcher: "先發投手", awayEra: "ERA",
+            homeTeam: "富邦悍將", homePitcher: "先發投手", homeEra: "ERA",
+            venue: "新莊棒球場"
         },
         {
             id: "game2",
-            awayTeam: "統一獅", awayPitcher: "古林睿煬", awayEra: "1.95",
-            homeTeam: "樂天桃猿", homePitcher: "魔神樂", homeEra: "3.10",
-            venue: "桃園國際棒球場"
+            awayTeam: "中信兄弟", awayPitcher: "先發投手", awayEra: "ERA",
+            homeTeam: "統一獅", homePitcher: "先發投手", homeEra: "ERA",
+            venue: "臺南市立棒球場"
+        },
+        {
+            id: "game3",
+            awayTeam: "樂天桃猿", awayPitcher: "先發投手", awayEra: "ERA",
+            homeTeam: "台鋼雄鷹", homePitcher: "先發投手", homeEra: "ERA",
+            venue: "澄清湖棒球場"
         }
     ];
 
-    // 初始化頁面
     function initPage() {
+        // 顯示今天日期
+        const today = new Date();
+        const dateString = today.toLocaleDateString('zh-TW', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
+        document.getElementById('current-date').innerText = `📅 今天是：${dateString}`;
+
         const gamesList = document.getElementById('games-list');
         const predictChoices = document.getElementById('predict-choices');
         
@@ -140,7 +151,7 @@
 
             predictChoices.innerHTML += `
                 <div class="form-group">
-                    <label>預測場次 ${index + 1} 勝隊：</label>
+                    <label>預測場次 ${index + 1} 勝隊（${game.awayTeam} VS ${game.homeTeam}）：</label>
                     <select class="game-predict" data-game-id="${game.id}" required>
                         <option value="">--請選擇勝出隊伍--</option>
                         <option value="${game.awayTeam}">${game.awayTeam}</option>
@@ -150,11 +161,9 @@
             `;
         });
 
-        // 讀取排行榜
         loadScoreboard();
     }
 
-    // 從 Firebase 的 'user' 集合即時讀取分數並排序
     function loadScoreboard() {
         db.collection('user').orderBy('score', 'desc').onSnapshot((snapshot) => {
             const scoreboard = document.getElementById('scoreboard');
@@ -173,7 +182,6 @@
         });
     }
 
-    // 處理表單送出（將預測寫入資料庫）
     document.getElementById('prediction-form').addEventListener('submit', function(e) {
         e.preventDefault();
         const player = document.getElementById('player').value;
@@ -185,11 +193,9 @@
             choices[gameId] = select.value;
         });
 
-        // 取得今天的台北日期字串作為 Document ID (例如: 2026-07-29)，防止重複登記
         const todayStr = new Date().toLocaleDateString('zh-TW', {timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit'}).replace(/\//g, '-');
         const docId = `${todayStr}_${player}`;
 
-        // 將預測資料上傳至 Firebase 的 'predictions' 集合
         db.collection('predictions').doc(docId).set({
             player: player,
             password: password,
