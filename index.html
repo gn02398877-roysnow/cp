@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CPBL 中職勝場預測王</title>
-    <!-- 載入 Firebase 必要的 SDK -->
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
     <style>
@@ -26,7 +25,7 @@
         th, td { border: 1px solid #ddd; padding: 12px; text-align: center; }
         th { background-color: #002d56; color: white; }
         tr:nth-child(even) { background-color: #f2f2f2; }
-        .no-game { text-align: center; color: #999; font-size: 1.2em; padding: 20px; }
+        .no-game { text-align: center; color: #999; font-size: 1.3em; padding: 30px; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -37,7 +36,7 @@
     
     <div id="games-section">
         <h2>今日賽事</h2>
-        <div id="games-list"></div>
+        <div id="games-list"><div class="no-game">正在讀取今日賽事資料... ⏳</div></div>
     </div>
 
     <hr style="margin: 30px 0; border: 0; border-top: 1px solid #eee;">
@@ -64,7 +63,7 @@
             <input type="password" id="password" placeholder="請輸入密碼以防止別人幫你亂寫" required>
         </div>
 
-        <button type="submit">送出預測</button>
+        <button type="submit" id="submit-btn" disabled>送出預測</button>
     </form>
 
     <hr style="margin: 30px 0; border: 0; border-top: 1px solid #eee;">
@@ -78,14 +77,12 @@
                 <th>總命中勝場數</th>
             </tr>
         </thead>
-        <tbody id="scoreboard">
-            <!-- 從 Firebase 'user' 集合即時載入 -->
-        </tbody>
+        <tbody id="scoreboard"></tbody>
     </table>
 </div>
 
 <script>
-    // ⚠️ 請記得替換成你的 Firebase 設定金鑰 ⚠️
+    // ⚠️ 貼上你的 Firebase 設定金鑰 ⚠️
     const firebaseConfig = {
         apiKey: "YOUR_API_KEY",
         authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
@@ -98,70 +95,58 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
 
-    // 🎯 每天需要在此處手動更新當天/明天的比賽資訊！
-    // 欄位 id 請固定用 "game1", "game2", "game3"... 依此類推
-    const todayGames = [
-        {
-            id: "game1",
-            awayTeam: "味全龍", awayPitcher: "先發投手", awayEra: "ERA",
-            homeTeam: "富邦悍將", homePitcher: "先發投手", homeEra: "ERA",
-            venue: "新莊棒球場"
-        },
-        {
-            id: "game2",
-            awayTeam: "中信兄弟", awayPitcher: "先發投手", awayEra: "ERA",
-            homeTeam: "統一獅", homePitcher: "先發投手", homeEra: "ERA",
-            venue: "臺南市立棒球場"
-        },
-        {
-            id: "game3",
-            awayTeam: "樂天桃猿", awayPitcher: "先發投手", awayEra: "ERA",
-            homeTeam: "台鋼雄鷹", homePitcher: "先發投手", homeEra: "ERA",
-            venue: "澄清湖棒球場"
-        }
-    ];
+    const todayStr = new Date().toLocaleDateString('zh-TW', {timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit'}).replace(/\//g, '-');
 
     function initPage() {
-        // 顯示今天日期
         const today = new Date();
         const dateString = today.toLocaleDateString('zh-TW', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
         document.getElementById('current-date').innerText = `📅 今天是：${dateString}`;
 
-        const gamesList = document.getElementById('games-list');
-        const predictChoices = document.getElementById('predict-choices');
-        
-        if (todayGames.length === 0) {
-            gamesList.innerHTML = '<div class="no-game">今天中華職棒沒有比賽喔！好好休息吧 🛌</div>';
-            predictChoices.innerHTML = '<p style="color:gray;">今天沒比賽，不用預測。</p>';
-            document.querySelector('#prediction-form button').disabled = true;
-            return;
-        }
-
-        todayGames.forEach((game, index) => {
-            gamesList.innerHTML += `
-                <div class="game-card">
-                    <div class="game-info">
-                        <div class="team">${game.awayTeam}<br><small>先發: ${game.awayPitcher} (ERA: ${game.awayEra})</small></div>
-                        <div class="vs">VS</div>
-                        <div class="team">${game.homeTeam}<br><small>先發: ${game.homePitcher} (ERA: ${game.homeEra})</small></div>
-                    </div>
-                    <div class="venue">📍 球場：${game.venue}</div>
-                </div>
-            `;
-
-            predictChoices.innerHTML += `
-                <div class="form-group">
-                    <label>預測場次 ${index + 1} 勝隊（${game.awayTeam} VS ${game.homeTeam}）：</label>
-                    <select class="game-predict" data-game-id="${game.id}" required>
-                        <option value="">--請選擇勝出隊伍--</option>
-                        <option value="${game.awayTeam}">${game.awayTeam}</option>
-                        <option value="${game.homeTeam}">${game.homeTeam}</option>
-                    </select>
-                </div>
-            `;
-        });
-
+        loadGamesFromFirebase();
         loadScoreboard();
+    }
+
+    function loadGamesFromFirebase() {
+        db.collection('daily_games').doc(todayStr).get().then((doc) => {
+            const gamesList = document.getElementById('games-list');
+            const predictChoices = document.getElementById('predict-choices');
+            
+            if (!doc.exists || !doc.data().games || doc.data().games.length === 0) {
+                gamesList.innerHTML = '<div class="no-game">今日尚無比賽 🛌</div>';
+                predictChoices.innerHTML = '<p style="color:gray;">今天沒比賽，不用預測。</p>';
+                document.getElementById('submit-btn').disabled = true;
+                return;
+            }
+
+            gamesList.innerHTML = '';
+            predictChoices.innerHTML = '';
+            const todayGames = doc.data().games;
+
+            todayGames.forEach((game, index) => {
+                gamesList.innerHTML += `
+                    <div class="game-card">
+                        <div class="game-info">
+                            <div class="team">${game.awayTeam}<br><small>先發: ${game.awayPitcher}</small></div>
+                            <div class="vs">VS</div>
+                            <div class="team">${game.homeTeam}<br><small>先發: ${game.homePitcher}</small></div>
+                        </div>
+                        <div class="venue">📍 球場：${game.venue}</div>
+                    </div>
+                `;
+
+                predictChoices.innerHTML += `
+                    <div class="form-group">
+                        <label>預測場次 ${index + 1} 勝隊（${game.awayTeam} VS ${game.homeTeam}）：</label>
+                        <select class="game-predict" data-game-id="game${index + 1}" required>
+                            <option value="">--請選擇勝出隊伍--</option>
+                            <option value="${game.awayTeam}">${game.awayTeam}</option>
+                            <option value="${game.homeTeam}">${game.homeTeam}</option>
+                        </select>
+                    </div>
+                `;
+            });
+            document.getElementById('submit-btn').disabled = false;
+        });
     }
 
     function loadScoreboard() {
@@ -171,13 +156,7 @@
             let rank = 1;
             snapshot.forEach((doc) => {
                 const userData = doc.data();
-                scoreboard.innerHTML += `
-                    <tr>
-                        <td>${rank++}</td>
-                        <td>${doc.id}</td>
-                        <td><strong>${userData.score}</strong> 分</td>
-                    </tr>
-                `;
+                scoreboard.innerHTML += `<tr><td>${rank++}</td><td>${doc.id}</td><td><strong>${userData.score}</strong> 分</td></tr>`;
             });
         });
     }
@@ -189,26 +168,14 @@
         
         let choices = {};
         document.querySelectorAll('.game-predict').forEach(select => {
-            const gameId = select.getAttribute('data-game-id');
-            choices[gameId] = select.value;
+            choices[select.getAttribute('data-game-id')] = select.value;
         });
 
-        const todayStr = new Date().toLocaleDateString('zh-TW', {timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit'}).replace(/\//g, '-');
-        const docId = `${todayStr}_${player}`;
-
-        db.collection('predictions').doc(docId).set({
-            player: player,
-            password: password,
-            choices: choices,
-            date: todayStr
+        db.collection('predictions').doc(`${todayStr}_${player}`).set({
+            player: player, password: password, choices: choices, date: todayStr
         })
-        .then(() => {
-            alert(`🎉 ${player}！你的今日預測已成功登記到雲端！`);
-        })
-        .catch((error) => {
-            console.error("寫入失敗: ", error);
-            alert("登記失敗，請檢查網路連線。");
-        });
+        .then(() => alert(`🎉 ${player}！你的今日預測已成功登記！`))
+        .catch(() => alert("登記失敗，請檢查網路。"));
     });
 
     window.onload = initPage;
