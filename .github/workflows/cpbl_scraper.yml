@@ -1,0 +1,95 @@
+name: CPBL Auto Scraper (LINE TODAY)
+
+on:
+  schedule:
+    # 每天台灣時間中午 12:30 自動執行 (國際標準時間 04:30)
+    - cron: '30 4 * * *'
+  workflow_dispatch: # 讓你可以手動在 GitHub 按按鈕立刻執行測試
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Dependencies
+        run: npm install axios firebase-admin
+
+      - name: Run Scraper
+        env:
+          FIREBASE_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          node -e "
+          const axios = require('axios');
+          const admin = require('firebase-admin');
+
+          // 初始化 Firebase 後台管理權限
+          const serviceAccount = JSON.parse(process.env.FIREBASE_KEY);
+          admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
+          const db = admin.firestore();
+
+          async function scrape() {
+            try {
+              // 1. 取得台灣時間的日期字串
+              const now = new Date();
+              const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+              const twTime = new Date(utc + (3600000 * 8));
+              const year = twTime.getFullYear();
+              const month = String(twTime.getMonth() + 1).padStart(2, '0');
+              const day = String(twTime.getDate()).padStart(2, '0');
+              const todayStr = \`\${year}-\${month}-\${day}\`; // 格式：2026-07-29
+
+              console.log('今日目標日期：', todayStr);
+
+              // 2. 直接請求 LINE TODAY 中職 2026 的賽程數據接口 (背後 API 數據)
+              // LINE TODAY 賽事分類為 cpbl，賽季為 CPBL-2026-oB
+              const res = await axios.get('https://today.line.me/tw/v3/baseball/seasons/CPBL-2026-oB/schedule', {
+                headers: { 
+                  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                  'Accept': 'application/json'
+                }
+              });
+
+              let gamesData = [];
+
+              // 3. 解析 LINE TODAY 回傳的 JSON 結構
+              if (res.data && res.data.content && res.data.content.games) {
+                const allGames = res.data.content.games;
+                
+                // 過濾出比賽日期等於今天的賽事
+                const todaysGames = allGames.filter(g => {
+                  if (!g.startTime) return false;
+                  const gDate = new Date(g.startTime);
+                  const gYear = gDate.getFullYear();
+                  const gMonth = String(gDate.getMonth() + 1).padStart(2, '0');
+                  const gDay = String(gDate.getDate()).padStart(2, '0');
+                  return \`\${gYear}-\${gMonth}-\${gDay}\` === todayStr;
+                });
+
+                todaysGames.forEach(g => {
+                  gamesData.push({
+                    awayTeam: g.guestTeam?.name || '客隊',
+                    awayPitcher: g.guestTeam?.startingPitcherName || '未定',
+                    homeTeam: g.homeTeam?.name || '主隊',
+                    homePitcher: g.homeTeam?.startingPitcherName || '未定',
+                    venue: g.venueName || '未定球場'
+                  });
+                });
+              }
+
+              // 4. 將資料強力寫入 Firebase 'daily_games' 集合
+              await db.collection('daily_games').doc(todayStr).set({ games: gamesData });
+              console.log(\`【大成功】從 LINE TODAY 成功抓取今日 \${gamesData.length} 場比賽，已同步至資料庫！\`);
+            } catch (err) {
+              console.error('抓取失敗，錯誤細節:', err.message);
+              process.exit(1);
+            }
+          }
+          scrape();
+          "
