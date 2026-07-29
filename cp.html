@@ -25,13 +25,13 @@
     <div id="settle-date" style="text-align:center; color:#666; margin-bottom:15px;"></div>
     
     <form id="result-form">
-        <div id="dynamic-settle-inputs"><p style="color:gray; text-align:center;">正在讀取今日自動抓取的賽事... ⏳</p></div>
+        <div id="dynamic-settle-inputs"><p style="color:gray; text-align:center;">正在同步中職官網賽事... ⏳</p></div>
         <button type="submit" id="settle-btn" disabled>🏆 確認結算並更新分數</button>
     </form>
 </div>
 
 <script>
-    // ⚠️ 貼上你的 Firebase 設定金鑰 ⚠️
+    // ⚠️ 請務必在此處替換成你在 Firebase 取得的真正連接金鑰 ⚠️
     const firebaseConfig = {
         apiKey: "YOUR_API_KEY",
         authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
@@ -44,18 +44,45 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
 
-    const todayStr = new Date().toLocaleDateString('zh-TW', {timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit'}).replace(/\//g, '-');
+    function getTaipeiDateString() {
+        const d = new Date();
+        const utc = d.getTime() + (d.getTimezoneOffset() * 60000);
+        const nd = new Date(utc + (3600000 * 8));
+        const year = nd.getFullYear();
+        const month = String(nd.getMonth() + 1).padStart(2, '0');
+        const day = String(nd.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    }
+
+    const todayStr = getTaipeiDateString();
     document.getElementById('settle-date').innerText = `結算日期：${todayStr}`;
 
     let loadedGames = [];
 
-    window.onload = function() {
-        db.collection('daily_games').doc(todayStr).get().then((doc) => {
-            const settleContainer = document.getElementById('dynamic-settle-inputs');
-            if(doc.exists && doc.data().games && doc.data().games.length > 0) {
-                loadedGames = doc.data().games;
+    window.onload = async function() {
+        const settleContainer = document.getElementById('dynamic-settle-inputs');
+        try {
+            const targetUrl = 'https://www.cpbl.com.tw/';
+            const proxyUrl = 'https://api.allorigins.win/get?url=' + encodeURIComponent(targetUrl) + '&_=' + new Date().getTime();
+
+            const res = await fetch(proxyUrl);
+            const data = await res.json();
+            
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(data.contents, 'text/html');
+            const gameElements = doc.querySelectorAll('.schedule_c_box');
+            
+            loadedGames = [];
+            gameElements.forEach((el) => {
+                const awayTeam = el.querySelector('.team_c_box.away .team_name')?.textContent?.trim() || '客隊';
+                const homeTeam = el.querySelector('.team_c_box.home .team_name')?.textContent?.trim() || '主隊';
+                if (awayTeam !== '客隊' && homeTeam !== '主隊') {
+                    loadedGames.push({ awayTeam, homeTeam });
+                }
+            });
+
+            if(loadedGames.length > 0) {
                 settleContainer.innerHTML = '';
-                
                 loadedGames.forEach((game, index) => {
                     settleContainer.innerHTML += `
                         <div class="game-result-input">
@@ -72,9 +99,10 @@
                 document.getElementById('settle-btn').disabled = false;
             } else {
                 settleContainer.innerHTML = '<div class="no-game-msg">今日尚無比賽，無需結算。</div>';
-                document.getElementById('settle-btn').disabled = true;
             }
-        });
+        } catch (err) {
+            settleContainer.innerHTML = '<div class="no-game-msg">同步中職賽事失敗，請檢查網路。</div>';
+        }
     };
 
     document.getElementById('result-form').addEventListener('submit', async function(e) {
