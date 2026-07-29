@@ -37,28 +37,41 @@ jobs:
           async function scrape() {
             try {
               const res = await axios.get('https://www.cpbl.com.tw/', {
-                headers: { 'User-Agent': 'Mozilla/5.0' }
+                headers: { 
+                  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' 
+                }
               });
               const dom = new JSDOM(res.data);
               const doc = dom.window.document;
 
-              const gameElements = doc.querySelectorAll('.index_schedule_item, .schedule_box, .game_item');
+              // 精準對齊中職官網首頁的今日賽事區塊標籤
+              const gameElements = doc.querySelectorAll('.schedule_c_box, .game_item, .index_schedule_item');
               let gamesData = [];
 
               gameElements.forEach((el) => {
-                const awayTeam = el.querySelector('.away .team_name')?.textContent?.trim() || '客隊';
-                const homeTeam = el.querySelector('.home .team_name')?.textContent?.trim() || '主隊';
-                const venue = el.querySelector('.venue')?.textContent?.trim() || '未定球場';
-                const awayPitcher = el.querySelector('.away .pitcher')?.textContent?.trim() || '未定';
-                const homePitcher = el.querySelector('.home .pitcher')?.textContent?.trim() || '未定';
+                // 抓取客隊與主隊名稱
+                const awayTeam = el.querySelector('.away .team_name, .team.away')?.textContent?.trim() || 
+                                 el.querySelector('.team_team:nth-of-type(1)')?.textContent?.trim() || '客隊';
+                const homeTeam = el.querySelector('.home .team_name, .team.home')?.textContent?.trim() || 
+                                 el.querySelector('.team_team:nth-of-type(2)')?.textContent?.trim() || '主隊';
                 
-                gamesData.push({ awayTeam, awayPitcher, homeTeam, homePitcher, venue });
+                // 抓取球場資訊
+                const venue = el.querySelector('.venue, .game_place')?.textContent?.trim() || '未定球場';
+                
+                // 抓取先發投手
+                const awayPitcher = el.querySelector('.away .pitcher, .pitcher_away')?.textContent?.trim() || '未定';
+                const homePitcher = el.querySelector('.home .pitcher, .pitcher_home')?.textContent?.trim() || '未定';
+                
+                // 过滤掉非今日賽事的空區塊
+                if (awayTeam !== '客隊' || homeTeam !== '主隊') {
+                  gamesData.push({ awayTeam, awayPitcher, homeTeam, homePitcher, venue });
+                }
               });
 
               const todayStr = new Date().toLocaleDateString('zh-TW', {timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit'}).replace(/\//g, '-');
               
               await db.collection('daily_games').doc(todayStr).set({ games: gamesData });
-              console.log('成功自動導入今日賽事：', gamesData.length, '場');
+              console.log('今日賽事自動導入成功，共 ' + gamesData.length + ' 場。');
             } catch (err) {
               console.error('抓取失敗:', err);
               process.exit(1);
