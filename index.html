@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CPBL 中職勝場預測王</title>
-    <!-- 載入 Firebase 必要的 SDK (v9 相容版) -->
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
     <style>
@@ -37,7 +36,7 @@
     
     <div id="games-section">
         <h2>今日賽事</h2>
-        <div id="games-list"><div class="no-game">正在即時抓取中職官網賽事... ⏳</div></div>
+        <div id="games-list"><div class="no-game">正在讀取今日賽事資料... ⏳</div></div>
     </div>
 
     <hr style="margin: 30px 0; border: 0; border-top: 1px solid #eee;">
@@ -78,27 +77,26 @@
                 <th>總命中勝場數</th>
             </tr>
         </thead>
-        <tbody id="scoreboard"></tbody>
+        <tbody id="scoreboard">
+            <tr><td colspan="3" style="color:gray;">正在載入排行榜玩家...</td></tr>
+        </tbody>
     </table>
 </div>
 
 <script>
-    // ⚠️ 請務必在此處替換成你在 Firebase 取得的真正連接金鑰 ⚠️
+    // ⚠️ 務必替換成你在 Firebase 取得的真正連接金鑰 ⚠️
     const firebaseConfig = {
-        apiKey: "YOUR_API_KEY",
-        authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-        projectId: "YOUR_PROJECT_ID",
-        storageBucket: "YOUR_PROJECT_ID.appspot.com",
-        messagingSenderId: "YOUR_SENDER_ID",
-        appId: "YOUR_APP_ID"
+        apiKey: "AIzaSyCkh2tbXRSUX1nh7XEdpMMs6mUZX5TsPCY",
+        authDomain: "cpbl-90cce.firebaseapp.com",
+        projectId: "cpbl-90cce",
+        storageBucket: "cpbl-90cce.firebasestorage.app",
+        messagingSenderId: "910757077086",
+        appId: "你的應用程式appId" // 記得補上你下載或複製到的完整 appId 喔！
     };
     
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
 
-    let globalTodayGames = [];
-
-    // 取得統一的台北時間日期字串 (格式: 2026-07-29)
     function getTaipeiDateString() {
         const d = new Date();
         const utc = d.getTime() + (d.getTimezoneOffset() * 60000);
@@ -116,57 +114,27 @@
         const dateString = today.toLocaleDateString('zh-TW', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
         document.getElementById('current-date').innerText = `📅 今天是：${dateString}`;
 
-        fetchCPBLGames();
+        loadGamesFromFirebase();
         loadScoreboard();
     }
 
-    // 繞過 CORS 直接即時對接中職官網 HTML
-    async function fetchCPBLGames() {
+    function loadGamesFromFirebase() {
         const gamesList = document.getElementById('games-list');
         const predictChoices = document.getElementById('predict-choices');
 
-        try {
-            const targetUrl = 'https://www.cpbl.com.tw/';
-            const proxyUrl = 'https://api.allorigins.win/get?url=' + encodeURIComponent(targetUrl) + '&_=' + new Date().getTime();
-
-            const res = await fetch(proxyUrl);
-            const data = await res.json();
-            
-            const parser = new DOMParser();
-            const doc = parser.parseFromString(data.contents, 'text/html');
-
-            // 定位今日賽事的外框
-            const gameElements = doc.querySelectorAll('.schedule_c_box');
-            globalTodayGames = [];
-
-            gameElements.forEach((el) => {
-                const venue = el.querySelector('.venue')?.textContent?.trim() || '未定球場';
-                
-                const awayBox = el.querySelector('.team_c_box.away');
-                const awayTeam = awayBox?.querySelector('.team_name')?.textContent?.trim() || '客隊';
-                const awayPitcher = awayBox?.querySelector('.pitcher')?.textContent?.trim()?.replace('先發:', '')?.trim() || '未定';
-
-                const homeBox = el.querySelector('.team_c_box.home');
-                const homeTeam = homeBox?.querySelector('.team_name')?.textContent?.trim() || '主隊';
-                const homePitcher = homeBox?.querySelector('.pitcher')?.textContent?.trim()?.replace('先發:', '')?.trim() || '未定';
-
-                if (awayTeam !== '客隊' && homeTeam !== '主隊') {
-                    globalTodayGames.push({ awayTeam, awayPitcher, homeTeam, homePitcher, venue });
-                }
-            });
-
-            // 渲染畫面
-            if (globalTodayGames.length === 0) {
-                gamesList.innerHTML = '<div class="no-game">今日尚無比賽 🛌</div>';
-                predictChoices.innerHTML = '<p style="color:gray;">今天沒比賽，不用預測。</p>';
+        db.collection('daily_games').doc(todayStr).onSnapshot((doc) => {
+            if (!doc.exists || !doc.data().games || doc.data().games.length === 0) {
+                gamesList.innerHTML = '<div class="no-game">今日管理員尚未同步賽程 🛌<br><small style="color:#bbb; font-size:0.7em;">請聯絡管理員貼上今日賽事</small></div>';
+                predictChoices.innerHTML = '<p style="color:gray;">目前尚無賽事，無法預測。</p>';
                 document.getElementById('submit-btn').disabled = true;
                 return;
             }
 
             gamesList.innerHTML = '';
             predictChoices.innerHTML = '';
+            const todayGames = doc.data().games;
 
-            globalTodayGames.forEach((game, index) => {
+            todayGames.forEach((game, index) => {
                 gamesList.innerHTML += `
                     <div class="game-card">
                         <div class="game-info">
@@ -190,22 +158,25 @@
                 `;
             });
             document.getElementById('submit-btn').disabled = false;
-
-        } catch (error) {
-            console.error("抓取官網失敗:", error);
-            gamesList.innerHTML = '<div class="no-game" style="color:red;">自動抓取官網賽事失敗，請檢查網路。</div>';
-        }
+        });
     }
 
     function loadScoreboard() {
+        const scoreboard = document.getElementById('scoreboard');
         db.collection('user').orderBy('score', 'desc').onSnapshot((snapshot) => {
-            const scoreboard = document.getElementById('scoreboard');
             scoreboard.innerHTML = '';
             let rank = 1;
+            if(snapshot.empty) {
+                scoreboard.innerHTML = '<tr><td colspan="3" style="color:gray;">資料庫中尚無玩家分數資料。</td></tr>';
+                return;
+            }
             snapshot.forEach((doc) => {
                 const userData = doc.data();
                 scoreboard.innerHTML += `<tr><td>${rank++}</td><td>${doc.id}</td><td><strong>${userData.score}</strong> 分</td></tr>`;
             });
+        }, (error) => {
+            console.error(error);
+            scoreboard.innerHTML = '<tr><td colspan="3" style="color:red;">載入排行榜失敗，請檢查金鑰設定。</td></tr>';
         });
     }
 
