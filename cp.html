@@ -9,24 +9,66 @@
     <style>
         body { font-family: sans-serif; background: #fdf6f0; color: #333; padding: 20px; }
         .admin-box { max-width: 650px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-        h1, h2 { color: #d9534f; text-align: center; }
+        h1 { color: #d9534f; text-align: center; }
         .game-result-input { margin-bottom: 20px; padding: 15px; border: 1px dashed #ccc; background: #fffdfa; }
         label { font-weight: bold; display: block; margin-bottom: 8px; }
         select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; }
         button { width: 100%; padding: 12px; background: #d9534f; color: white; border: none; border-radius: 4px; font-size: 1.1em; cursor: pointer; margin-top: 15px; }
         button:hover { background: #c9302c; }
-        .no-game-msg { text-align: center; color: red; font-weight: bold; padding: 20px; }
+        .nav-link { display: inline-block; margin-bottom: 15px; color: #002d56; font-weight: bold; text-decoration: none; }
     </style>
 </head>
 <body>
 
 <div class="admin-box">
+    <a href="index.html" class="nav-link">⬅️ 返回預測首頁</a>
     <h1>⚙️ 管理者賽果結算系統 (cp)</h1>
-    <div id="settle-date" style="text-align:center; color:#666; margin-bottom:15px;"></div>
+    <div id="settle-date" style="text-align:center; color:#666; margin-bottom:20px; font-weight:bold;"></div>
     
     <form id="result-form">
-        <div id="dynamic-settle-inputs"><p style="color:gray; text-align:center;">正在同步今日賽事... ⏳</p></div>
-        <button type="submit" id="settle-btn" disabled>🏆 確認結算並更新分數</button>
+        <div class="game-result-input">
+            <label>🏆 【第一場】今日最終贏家：</label>
+            <select class="actual-winner" data-game-id="game1" required>
+                <option value="無比賽">-- 今日無此場次 / 因雨延賽 --</option>
+                <option value="中信兄弟">中信兄弟</option>
+                <option value="統一7-ELEVEn獅">統一7-ELEVEn獅</option>
+                <option value="樂天桃猿">樂天桃猿</option>
+                <option value="富邦悍將">富邦悍將</option>
+                <option value="味全龍">味全龍</option>
+                <option value="台鋼雄鷹">台鋼雄鷹</option>
+                <option value="和局">和局</option>
+            </select>
+        </div>
+
+        <div class="game-result-input">
+            <label>🏆 【第二場】今日最終贏家：</label>
+            <select class="actual-winner" data-game-id="game2" required>
+                <option value="無比賽">-- 今日無此場次 / 因雨延賽 --</option>
+                <option value="中信兄弟">中信兄弟</option>
+                <option value="統一7-ELEVEn獅">統一7-ELEVEn獅</option>
+                <option value="樂天桃猿">樂天桃猿</option>
+                <option value="富邦悍將">富邦悍將</option>
+                <option value="味全龍">味全龍</option>
+                <option value="台鋼雄鷹">台鋼雄鷹</option>
+                <option value="和局">和局</option>
+            </select>
+        </div>
+
+        <div class="game-result-input">
+            <label>🏆 【第三場】今日最終贏家：</label>
+            <select class="actual-winner" data-game-id="game3" required>
+                <option value="無比賽">-- 今日無此場次 / 因雨延賽 --</option>
+                <option value="中信兄弟">中信兄弟</option>
+                <option value="統一7-ELEVEn獅">統一7-ELEVEn獅</option>
+                <option value="樂天桃猿">樂天桃猿</option>
+                <option value="富邦悍將">富邦悍將</option>
+                <option value="味全龍">味全龍</option>
+                <option value="台鋼雄鷹">台鋼雄鷹</option>
+                <option value="和局">和局</option>
+            </select>
+        </div>
+
+        <button type="submit">驗證對齊名稱並更新分數 🏆</button>
     </form>
 </div>
 
@@ -37,7 +79,7 @@
         projectId: "cpbl-90cce",
         storageBucket: "cpbl-90cce.firebasestorage.app",
         messagingSenderId: "910757077086",
-        appId: "你的完整appId" // 👈 這裡請補上你在 Firebase 畫面複製到的完整 appId 喔！
+        appId: "你的完整appId" // 👈 這裡也要記得補上完整的 appId 喔！
     };
     
     firebase.initializeApp(firebaseConfig);
@@ -56,64 +98,38 @@
     const todayStr = getTaipeiDateString();
     document.getElementById('settle-date').innerText = `結算日期：${todayStr}`;
 
-    let loadedGames = [];
-
-    window.onload = function() {
-        const settleContainer = document.getElementById('dynamic-settle-inputs');
-        
-        db.collection('daily_games').doc(todayStr).onSnapshot((doc) => {
-            if (doc.exists && doc.data().games && doc.data().games.length > 0) {
-                loadedGames = doc.data().games;
-                settleContainer.innerHTML = '';
-                
-                loadedGames.forEach((game, index) => {
-                    settleContainer.innerHTML += `
-                        <div class="game-result-input">
-                            <label>【場次 ${index+1}】${game.awayTeam} VS ${game.homeTeam} 最終贏家：</label>
-                            <select class="actual-winner" data-game-id="game${index+1}" required>
-                                <option value="">-- 請選擇贏家 --</option>
-                                <option value="${game.awayTeam}">${game.awayTeam}</option>
-                                <option value="${game.homeTeam}">${game.homeTeam}</option>
-                                <option value="和局">和局 / 因雨裁定</option>
-                            </select>
-                        </div>
-                    `;
-                });
-                document.getElementById('settle-btn').disabled = false;
-            } else {
-                settleContainer.innerHTML = '<div class="no-game-msg">今日資料庫尚無賽事資料。<br><small style="color:gray;font-weight:normal;">請先讓任何人打開一次預測首頁，系統將會全自動抓取並儲存賽程。</small></div>';
-                document.getElementById('settle-btn').disabled = true;
-            }
-        });
-    };
-
     document.getElementById('result-form').addEventListener('submit', async function(e) {
         e.preventDefault();
-        if (loadedGames.length === 0) return;
-        if (!confirm("確定要結算今日分數嗎？")) return;
+        if (!confirm("確定要進行今日預測名稱自動核對與分數更新嗎？")) return;
 
+        // 1. 抓取管理者選取的正確賽果
         let rightAnswers = {};
         document.querySelectorAll('.actual-winner').forEach(select => {
             rightAnswers[select.getAttribute('data-game-id')] = select.value;
         });
 
         try {
+            // 2. 撈出今天所有玩家提交的預測紀錄
             const snapshot = await db.collection('predictions').where('date', '==', todayStr).get();
-            if (snapshot.empty) return alert("今天沒有任何人登記預測，無需結算。");
+            if (snapshot.empty) return alert("今天沒有任何人登記預測，無法核對。");
 
             const batch = db.batch();
             let hasUpdates = false;
 
+            // 3. 跑迴圈自動核對文字名稱
             snapshot.forEach(doc => {
                 const p = doc.data();
                 let points = 0;
                 
+                // 比對場次 1, 2, 3
                 for (const gid in rightAnswers) {
-                    if (p.choices && p.choices[gid] === rightAnswers[gid]) {
+                    // 如果這場比賽管理者有設定勝隊(非無比賽)，且玩家選擇的文字跟管理者完全相同，就+1分
+                    if (rightAnswers[gid] !== "無比賽" && p.choices && p.choices[gid] === rightAnswers[gid]) {
                         points++;
                     }
                 }
                 
+                // 4. 如果有猜對，就把分數累加進 user 集合中
                 if (points > 0) {
                     hasUpdates = true;
                     batch.update(db.collection('user').doc(p.player), {
@@ -124,13 +140,13 @@
 
             if (hasUpdates) {
                 await batch.commit();
-                alert("🎉 今日分數核對完成！排行榜已秒速更新！");
+                alert("🎉 名稱核對成功！符合贏家名稱的玩家已自動獲得對應分數，排行榜已更新！");
             } else {
-                alert("結算完成！今天大家都沒猜中，排行榜分數維持不變。");
+                alert("核對完成！今天大家都完美避開了正確答案，無人加分。");
             }
         } catch (err) {
             console.error(err);
-            alert("結算失敗，請檢查網路連線或權限設定。");
+            alert("結算失敗，請檢查網路連線。");
         }
     });
 </script>
