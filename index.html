@@ -26,6 +26,7 @@
         th { background-color: #002d56; color: white; }
         tr:nth-child(even) { background-color: #f2f2f2; }
         .no-game { text-align: center; color: #999; font-size: 1.3em; padding: 30px; font-weight: bold; }
+        .status-tag { text-align: center; font-size: 0.8em; color: #aaa; margin-top: -10px; margin-bottom: 20px; }
     </style>
 </head>
 <body>
@@ -33,6 +34,7 @@
 <div class="container">
     <h1>⚾ CPBL 今日賽事預測</h1>
     <div class="date-display" id="current-date">📅 讀取日期中...</div>
+    <div class="status-tag" id="sync-status">資料同步狀態：檢查中...</div>
     
     <div id="games-section">
         <h2>今日賽事</h2>
@@ -84,14 +86,13 @@
 </div>
 
 <script>
-    // 🎯 已自動幫你填入大部分正確金鑰，請務必把 appId 補齊即可！
     const firebaseConfig = {
         apiKey: "AIzaSyCkh2tbXRSUX1nh7XEdpMMs6mUZX5TsPCY",
         authDomain: "cpbl-90cce.firebaseapp.com",
         projectId: "cpbl-90cce",
         storageBucket: "cpbl-90cce.firebasestorage.app",
         messagingSenderId: "910757077086",
-        appId: "你的完整appId" // 👈 這裡請補上你在 Firebase 畫面複製到的完整 appId 喔！
+        appId: "你的完整appId" // 👈 請在此處補上你在 Firebase 取得的完整 appId
     };
     
     firebase.initializeApp(firebaseConfig);
@@ -114,55 +115,117 @@
         const dateString = today.toLocaleDateString('zh-TW', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
         document.getElementById('current-date').innerText = `📅 今天是：${dateString}`;
 
-        loadGamesFromFirebase();
+        loadGamesAndSync();
         loadScoreboard();
     }
 
-    // 監聽 Firebase 裡由機器人塞進來的當日賽事
-    function loadGamesFromFirebase() {
+    // 核心邏輯：先看資料庫有沒有，沒有就由當下這位玩家的瀏覽器現場抓取並寫入資料庫
+    function loadGamesAndSync() {
         const gamesList = document.getElementById('games-list');
         const predictChoices = document.getElementById('predict-choices');
+        const syncStatus = document.getElementById('sync-status');
 
-        db.collection('daily_games').doc(todayStr).onSnapshot((doc) => {
-            if (!doc.exists || !doc.data().games || doc.data().games.length === 0) {
-                gamesList.innerHTML = '<div class="no-game">今日尚無比賽，或全自動機器人尚未執行 🛌<br><small style="color:#bbb; font-size:0.7em;">查詢日期: '+todayStr+'</small></div>';
-                predictChoices.innerHTML = '<p style="color:gray;">今天沒比賽，不用預測。</p>';
-                document.getElementById('submit-btn').disabled = true;
+        db.collection('daily_games').doc(todayStr).onSnapshot(async (doc) => {
+            // 如果資料庫已經有今天的比賽了，直接渲染畫面
+            if (doc.exists && doc.data().games && doc.data().games.length > 0) {
+                syncStatus.innerText = "資料同步狀態：✅ 已與官方賽程同步";
+                renderGames(doc.data().games);
                 return;
             }
 
-            gamesList.innerHTML = '';
-            predictChoices.innerHTML = '';
-            const todayGames = doc.data().games;
+            // 如果資料庫是空的，代表今天這個網頁第一次被打開，啟動「瀏覽器現場自動抓取」
+            syncStatus.innerText = "資料同步狀態：⚡ 偵測到今日尚未同步，正在現場抓取官方賽程...";
+            
+            try {
+                // 利用全台免費的 CORS 代理，讓瀏覽器可以直接撈 LINE TODAY API 數據
+                const proxyUrl = 'https://cors-anywhere.herokuapp.com/'; 
+                const apiUrl = 'https://today.line.me/webapi/api/v3/sports/baseball/seasons/CPBL-2026-oB/schedule?timezone=GMT%2B08%3A00&country=TW&page=1&size=300';
+                
+                // 優先直連，如果失敗可以改用代理
+                let res;
+                try {
+                    res = await fetch(apiUrl).then(r => r.json());
+                } catch(e) {
+                    // 如果直連被瀏覽器跨網域擋住，改走開放代理
+                    res = await fetch(proxyUrl + apiUrl).then(r => r.json());
+                }
 
-            todayGames.forEach((game, index) => {
-                gamesList.innerHTML += `
-                    <div class="game-card">
-                        <div class="game-info">
-                            <div class="team">${game.awayTeam}<br><small>先發: ${game.awayPitcher}</small></div>
-                            <div class="vs">VS</div>
-                            <div class="team">${game.homeTeam}<br><small>先發: ${game.homePitcher}</small></div>
-                        </div>
-                        <div class="venue">📍 球場：${game.venue}</div>
-                    </div>
-                `;
+                let fetchedGames = [];
 
-                predictChoices.innerHTML += `
-                    <div class="form-group">
-                        <label>預測場次 ${index + 1} 勝隊（${game.awayTeam} VS ${game.homeTeam}）：</label>
-                        <select class="game-predict" data-game-id="game${index + 1}" required>
-                            <option value="">--請選擇勝出隊伍--</option>
-                            <option value="${game.awayTeam}">${game.awayTeam}</option>
-                            <option value="${game.homeTeam}">${game.homeTeam}</option>
-                        </select>
-                    </div>
-                `;
-            });
-            document.getElementById('submit-btn').disabled = false;
+                if (res && res.content && res.content.games) {
+                    const allGames = res.content.games;
+                    
+                    const todaysGames = allGames.filter(g => {
+                        if (!g.startTime) return false;
+                        const gDate = new Date(g.startTime);
+                        const gUtc = gDate.getTime() + (gDate.getTimezoneOffset() * 60000);
+                        const gTw = new Date(gUtc + (3600000 * 8));
+                        const gYear = gTw.getFullYear();
+                        const gMonth = String(gTw.getMonth() + 1).padStart(2, '0');
+                        const gDay = String(gTw.getDate()).padStart(2, '0');
+                        return `${gYear}-${gMonth}-${gDay}` === todayStr;
+                    });
+
+                    todaysGames.forEach(g => {
+                        fetchedGames.push({
+                            awayTeam: g.guestTeam?.name || '客隊',
+                            awayPitcher: g.guestTeam?.startingPitcherName || '未定',
+                            homeTeam: g.homeTeam?.name || '主隊',
+                            homePitcher: g.homeTeam?.startingPitcherName || '未定',
+                            venue: g.venueName || '未定球場'
+                        });
+                    });
+                }
+
+                // 抓到資料後，自動寫回 Firebase，這樣下一個人進網頁就不用再抓一次了！
+                await db.collection('daily_games').doc(todayStr).set({ games: fetchedGames });
+                
+                if (fetchedGames.length === 0) {
+                    gamesList.innerHTML = '<div class="no-game">今日官方查無中職賽事 🛌<br><small style="color:#bbb; font-size:0.7em;">查詢日期: '+todayStr+'</small></div>';
+                    predictChoices.innerHTML = '<p style="color:gray;">今天沒比賽，不用預測。</p>';
+                }
+
+            } catch (err) {
+                console.error(err);
+                syncStatus.innerText = "資料同步狀態：❌ 自動抓取失敗，請聯絡管理員至後台檢查";
+                gamesList.innerHTML = '<div class="no-game">賽程自動加載失敗 ⏳<br><small style="color:#bbb; font-size:0.7em;">如果今日有比賽，請請管理員使用 cp 後台導入</small></div>';
+            }
         });
     }
 
-    // 讀取排行榜玩家與分數
+    function renderGames(todayGames) {
+        const gamesList = document.getElementById('games-list');
+        const predictChoices = document.getElementById('predict-choices');
+        
+        gamesList.innerHTML = '';
+        predictChoices.innerHTML = '';
+
+        todayGames.forEach((game, index) => {
+            gamesList.innerHTML += `
+                <div class="game-card">
+                    <div class="game-info">
+                        <div class="team">${game.awayTeam}<br><small>先發: ${game.awayPitcher}</small></div>
+                        <div class="vs">VS</div>
+                        <div class="team">${game.homeTeam}<br><small>先發: ${game.homePitcher}</small></div>
+                    </div>
+                    <div class="venue">📍 球場：${game.venue}</div>
+                </div>
+            `;
+
+            predictChoices.innerHTML += `
+                <div class="form-group">
+                    <label>預測場次 ${index + 1} 勝隊（${game.awayTeam} VS ${game.homeTeam}）：</label>
+                    <select class="game-predict" data-game-id="game${index + 1}" required>
+                        <option value="">--請選擇勝出隊伍--</option>
+                        <option value="${game.awayTeam}">${game.awayTeam}</option>
+                        <option value="${game.homeTeam}">${game.homeTeam}</option>
+                    </select>
+                </div>
+            `;
+        });
+        document.getElementById('submit-btn').disabled = false;
+    }
+
     function loadScoreboard() {
         const scoreboard = document.getElementById('scoreboard');
         db.collection('user').orderBy('score', 'desc').onSnapshot((snapshot) => {
@@ -172,9 +235,6 @@
                 const userData = doc.data();
                 scoreboard.innerHTML += `<tr><td>${rank++}</td><td>${doc.id}</td><td><strong>${userData.score}</strong> 分</td></tr>`;
             });
-        }, (error) => {
-            console.error(error);
-            scoreboard.innerHTML = '<tr><td colspan="3" style="color:red;">載入排行榜失敗，請檢查權限。</td></tr>';
         });
     }
 
