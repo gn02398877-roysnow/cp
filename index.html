@@ -43,18 +43,13 @@
         .game-card:last-child { margin-bottom: 0; }
         .game-info { display: flex; justify-content: space-between; align-items: center; }
         
-        /* 配合需求：字體放大約 3 倍左右，且左邊為主隊、右邊為客隊 */
         .team { width: 42%; text-align: center; font-weight: bold; font-size: 2.8em; color: #002d56; line-height: 1.2; }
         .team-title { font-size: 0.35em; display: inline-block; padding: 4px 10px; border-radius: 4px; margin-bottom: 8px; font-weight: bold; vertical-align: middle; }
         .home-title { background: #27ae60; color: white; }
         .away-title { background: #e67e22; color: white; }
         
-        /* 先發投手字體同步放大 */
         .pitcher-text { font-size: 0.45em; color: #555; font-weight: normal; display: block; margin-top: 6px; }
-        
         .vs { width: 16%; text-align: center; color: #d9534f; font-style: italic; font-weight: bold; font-size: 2.5em; }
-        
-        /* 球場字體同步放大 */
         .venue { text-align: center; margin-top: 20px; color: #111; font-size: 1.6em; font-weight: bold; background: #eef2f5; padding: 8px; border-radius: 4px; }
         .no-game { text-align: center; color: #999; font-size: 1.5em; padding: 20px; font-weight: bold; }
         
@@ -68,6 +63,22 @@
         th, td { border: 1px solid #ddd; padding: 12px; text-align: center; font-size: 1.05em; }
         th { background-color: #002d56; color: white; }
         tr:nth-child(even) { background-color: #f2f2f2; }
+
+        @media screen and (max-width: 600px) {
+            body { padding: 10px; }
+            .container { padding: 15px; border-radius: 8px; }
+            h1 { font-size: 1.8em; }
+            .date-display { font-size: 1em; }
+            .games-frame { padding: 12px; margin-bottom: 20px; }
+            .game-card { padding: 15px; margin-bottom: 15px; }
+            .team { font-size: 1.4em; }
+            .team-title { font-size: 0.6em; padding: 2px 6px; margin-bottom: 4px; }
+            .pitcher-text { font-size: 0.7em; margin-top: 4px; }
+            .vs { font-size: 1.3em; }
+            .venue { font-size: 1em; margin-top: 12px; padding: 5px; }
+            th, td { padding: 8px 5px; font-size: 0.9em; }
+            .floating-admin-btn { bottom: 15px; right: 15px; width: 50px; height: 50px; font-size: 22px; }
+        }
     </style>
 </head>
 <body>
@@ -176,18 +187,15 @@
             predictArea.innerHTML = `<label>選擇預測勝隊</label><div style="background:#f9f9f9; padding:15px; border-radius:6px; border:1px solid #eee; margin-bottom:15px;">`;
 
             games.forEach((game, index) => {
-                // 修正：左邊固定顯示主隊、右邊顯示客隊，且字體大幅度放大 3 倍左右
                 gamesList.innerHTML += `
                     <div class="game-card">
                         <div class="game-info">
-                            <!-- 左邊：主隊 -->
                             <div class="team">
                                 <span class="team-title home-title">主隊</span><br>
                                 ${game.homeTeam}
                                 <span class="pitcher-text">先發: ${game.homePitcher}</span>
                             </div>
                             <div class="vs">VS</div>
-                            <!-- 右邊：客隊 -->
                             <div class="team">
                                 <span class="team-title away-title">客隊</span><br>
                                 ${game.awayTeam}
@@ -198,7 +206,6 @@
                     </div>
                 `;
 
-                // 下拉選單維持一致對照
                 predictArea.firstChild.nextSibling.innerHTML += `
                     <div style="margin-bottom: 12px;">
                         <span style="font-weight:bold; font-size:1.05em;">場次 ${index+1} (${game.homeTeam} 主 VS ${game.awayTeam} 客)：</span>
@@ -246,20 +253,36 @@
         });
     }
 
-    // 防重複預測核心控制機制
+    // 提交預測：防重複預測 + 各玩家專屬防呆密碼比對驗證
     document.getElementById('prediction-form').addEventListener('submit', async function(e) {
         e.preventDefault();
         const player = document.getElementById('player').value;
-        const password = document.getElementById('password').value;
+        const passwordInput = document.getElementById('password').value.trim();
         
         try {
-            // 阻擋重複送出：先查今日是否已經有此人的文件存在
+            // 1. 取得該玩家在資料庫中的設定檔資料（包含專屬密碼）
+            const userRef = db.collection('user').doc(player);
+            const userSnap = await userRef.get();
+            
+            if (!userSnap.exists) {
+                alert(`⚠️ 資料庫中找不到玩家【${player}】的檔案，請聯絡管理者初始化帳號。`);
+                return;
+            }
+            
+            // 比對資料庫儲存的密碼
+            const correctPassword = userSnap.data().password || "";
+            if (passwordInput !== correctPassword) {
+                alert(`❌ 密碼錯誤！請輸入您個人的正確防呆密碼，防範他人竄改！`);
+                return;
+            }
+
+            // 2. 檢查今日是否已經有預測紀錄，防止覆蓋
             const docRef = db.collection('today_predictions').doc(player);
             const docSnap = await docRef.get();
             
             if (docSnap.exists) {
-                alert(`⚠️ 拒絕覆蓋！【${player}】你今天已經登記過預測囉，無法再次預測！\n若有特殊原因需更改，請聯繫管理者。`);
-                return; // 直接攔截並中斷執行
+                alert(`⚠️ 拒絕覆蓋！【${player}】你今天已經登記過預測囉，無法再次預測！`);
+                return;
             }
 
             let choices = {};
@@ -267,8 +290,9 @@
                 choices[select.getAttribute('data-game-id')] = select.value;
             });
 
-            await docRef.set({ player: player, password: password, choices: choices });
-            alert(`🎉 ${player}！你的今日預測結果已成功提交！`);
+            await docRef.set({ player: player, password: passwordInput, choices: choices });
+            alert(`🎉 密碼驗證成功！${player} 的今日預測結果已順利提交！`);
+            document.getElementById('prediction-form').reset();
         } catch (err) {
             console.error(err);
             alert("登記失敗，請檢查網路連線。");
