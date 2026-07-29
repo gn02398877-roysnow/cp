@@ -16,7 +16,6 @@
         .floating-admin-btn { position: fixed; bottom: 30px; right: 30px; background: #e74c3c; color: white; width: 60px; height: 60px; border-radius: 50%; border: none; font-size: 28px; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.3); z-index: 9999; display: flex; align-items: center; justify-content: center; transition: transform 0.2s, background 0.2s; }
         .floating-admin-btn:hover { background: #c0392b; transform: scale(1.1); }
         
-        /* 賽程方框與左右箭頭切換列 */
         .games-frame { border: 2px solid #002d56; border-radius: 8px; padding: 25px; background: #fafafa; margin-bottom: 30px; }
         .frame-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #ddd; padding-bottom: 10px; margin-bottom: 15px; }
         .frame-header h3 { margin: 0; color: #002d56; font-size: 1.5em; text-align: center; flex: 1; }
@@ -75,7 +74,6 @@
     <h1>⚾ 中職勝場預測王 🏆</h1>
     <div class="date-display" id="current-date">📅 讀取日期中...</div>
     
-    <!-- 賽程看版：支援左右切換日期 -->
     <div class="games-frame">
         <div class="frame-header">
             <button type="button" class="nav-arrow" onclick="changeViewerDate(-1)">◀</button>
@@ -87,7 +85,6 @@
 
     <h2>登記今日 / 明後天預測</h2>
     <form id="prediction-form">
-        <!-- 新增需求：選擇要壓注預測的日期 -->
         <div class="form-group">
             <label for="predict-date-select">請選擇您要登記預測的日期</label>
             <select id="predict-date-select" onchange="onPredictDateChanged()" required></select>
@@ -142,7 +139,7 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
 
-    let viewOffset = 0; // 0代表今天，1代表明天，2代表後天
+    let viewOffset = 0; 
     let todayDateStr = "";
     let activeGamesForPredict = [];
     let unsubGamesListener = null;
@@ -161,7 +158,6 @@
         
         todayDateStr = getTaipeiDateString(0);
         
-        // 渲染預測登記日期選單（提供今天、明天、後天選項）
         const dateSelect = document.getElementById('predict-date-select');
         dateSelect.innerHTML = `
             <option value="${getTaipeiDateString(0)}">今天 (${getTaipeiDateString(0)})</option>
@@ -170,7 +166,7 @@
         `;
 
         renderViewerFrame();
-        onPredictDateChanged(); // 初始化載入下注區的選單
+        onPredictDateChanged(); 
         loadScoreboardData();
     };
 
@@ -180,15 +176,13 @@
         else if (pw !== null) { alert("密碼錯誤，拒絕進入！❌"); }
     }
 
-    // 點擊看板左右箭頭切換顯示日期
     function changeViewerDate(dir) {
         viewOffset += dir;
-        if(viewOffset < 0) viewOffset = 0; // 最早只能看今天
-        if(viewOffset > 2) viewOffset = 2; // 最遠看後天
+        if(viewOffset < 0) viewOffset = 0; 
+        if(viewOffset > 2) viewOffset = 2; 
         renderViewerFrame();
     }
 
-    // 渲染上方賽程看版
     function renderViewerFrame() {
         const targetDate = getTaipeiDateString(viewOffset);
         const titleEl = document.getElementById('viewer-date-title');
@@ -221,7 +215,6 @@
         });
     }
 
-    // 當下注登記日期被改變時，動態更新下方可供點選的勝隊下拉清單
     function onPredictDateChanged() {
         const pDate = document.getElementById('predict-date-select').value;
         const area = document.getElementById('predict-choices-area');
@@ -254,7 +247,6 @@
         });
     }
 
-    // 排行榜載入，並專注監聽「今天」這個日期的打勾打叉狀態
     function loadScoreboardData() {
         const scoreboard = document.getElementById('scoreboard');
         
@@ -271,7 +263,6 @@
                     const name = doc.id;
                     let statusBadge = `<span style="color:#e74c3c; font-size:1.2em;">❌</span>`;
                     
-                    // 檢查資料庫今天有沒有安排比賽
                     db.collection('dates_schedule').doc(todayDateStr).get().then(sDoc => {
                         const hasGames = sDoc.exists && sDoc.data().games && sDoc.data().games.length > 0;
                         if (!hasGames) statusBadge = `<span style="color:#aaa;">-</span>`;
@@ -292,7 +283,6 @@
         });
     }
 
-    // 處理登記預測送出
     document.getElementById('prediction-form').addEventListener('submit', async function(e) {
         e.preventDefault();
         const pDate = document.getElementById('predict-date-select').value;
@@ -304,7 +294,6 @@
             if (!userSnap.exists) return alert(`資料庫找不到玩家【${player}】`);
             if (passwordInput !== (userSnap.data().password || "")) return alert(`❌ 防呆密碼驗證失敗！請輸入正確密碼！`);
 
-            // 精準鎖定該日期的獨立防覆蓋機制
             const docId = `${pDate}_${player}`;
             const docSnap = await db.collection('predictions').doc(docId).get();
             if (docSnap.exists) return alert(`⚠️ 拒絕覆蓋！你已經成功登記過 ${pDate} 的預測囉，無法重複修改！`);
