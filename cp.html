@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>中職預測王 - 管理者後台 (cp)</title>
-    <!-- 載入 Firebase 必要的 SDK (v9 相容版) -->
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
     <style>
@@ -26,13 +25,12 @@
     <div id="settle-date" style="text-align:center; color:#666; margin-bottom:15px;"></div>
     
     <form id="result-form">
-        <div id="dynamic-settle-inputs"><p style="color:gray; text-align:center;">正在同步資料庫今日賽事... ⏳</p></div>
+        <div id="dynamic-settle-inputs"><p style="color:gray; text-align:center;">正在同步今日賽事... ⏳</p></div>
         <button type="submit" id="settle-btn" disabled>🏆 確認結算並更新分數</button>
     </form>
 </div>
 
 <script>
-    // 🎯 金鑰已自動幫你對齊，請務必把完整的 appId 補上即可！
     const firebaseConfig = {
         apiKey: "AIzaSyCkh2tbXRSUX1nh7XEdpMMs6mUZX5TsPCY",
         authDomain: "cpbl-90cce.firebaseapp.com",
@@ -60,7 +58,6 @@
 
     let loadedGames = [];
 
-    // 當網頁打開時，自動去讀取 Firebase 資料庫裡面的今日賽程
     window.onload = function() {
         const settleContainer = document.getElementById('dynamic-settle-inputs');
         
@@ -69,7 +66,6 @@
                 loadedGames = doc.data().games;
                 settleContainer.innerHTML = '';
                 
-                // 根據自動抓到的比賽，自動生成對應的贏家下拉選單
                 loadedGames.forEach((game, index) => {
                     settleContainer.innerHTML += `
                         <div class="game-result-input">
@@ -85,16 +81,12 @@
                 });
                 document.getElementById('settle-btn').disabled = false;
             } else {
-                settleContainer.innerHTML = '<div class="no-game-msg">今日資料庫尚無比賽資料。<br><small style="color:gray;font-weight:normal;">請確認 GitHub Actions 的 LINE TODAY 爬蟲是否有成功亮綠燈。</small></div>';
+                settleContainer.innerHTML = '<div class="no-game-msg">今日資料庫尚無賽事資料。<br><small style="color:gray;font-weight:normal;">請先讓任何人打開一次預測首頁，系統將會全自動抓取並儲存賽程。</small></div>';
                 document.getElementById('settle-btn').disabled = true;
             }
-        }, (error) => {
-            console.error(error);
-            settleContainer.innerHTML = '<div class="no-game-msg">載入失敗，請檢查金鑰與 Firebase 權限。</div>';
         });
     };
 
-    // 點擊確認結算後，會自動抓取大家在 predictions 裡的預測進行比對，並幫贏的人加分
     document.getElementById('result-form').addEventListener('submit', async function(e) {
         e.preventDefault();
         if (loadedGames.length === 0) return;
@@ -116,14 +108,12 @@
                 const p = doc.data();
                 let points = 0;
                 
-                // 核對每一場的選擇是否跟實際贏家相同
                 for (const gid in rightAnswers) {
                     if (p.choices && p.choices[gid] === rightAnswers[gid]) {
                         points++;
                     }
                 }
                 
-                // 如果有猜對，就在 'user' 集合中對應的玩家 document ID 加上分數
                 if (points > 0) {
                     hasUpdates = true;
                     batch.update(db.collection('user').doc(p.player), {
