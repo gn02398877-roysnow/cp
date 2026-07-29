@@ -24,15 +24,14 @@
         .score-adjust-btn { padding: 4px 10px; margin: 0 4px; background: #7f8c8d; }
         .team-row { margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px dashed #eee; font-size: 0.95em; line-height: 1.6; }
         .team-name-tag { display: inline-block; width: 85px; font-weight: bold; color: #d9534f; }
-        
-        /* 徹底移除了 max-height 與 overflow-y，高度全自動延伸，拉條已不復存在 */
         .db-list-box { background:#fcfcfc; padding:15px; border:1px solid #ddd; border-radius:4px; height: auto; margin-top: 5px; }
     </style>
 </head>
 <body>
 
 <div class="admin-box">
-    <a href="index.html" style="display:inline-block; margin-bottom:15px; font-weight:bold; text-decoration:none; color:#002d56;">⬅️ 返回預測首頁</a>
+    <!-- 👈 已將返回超連結精準修改為您的完整專案網址路徑 -->
+    <a href="https://gn02398877-roysnow.github.io/cp/" style="display:inline-block; margin-bottom:15px; font-weight:bold; text-decoration:none; color:#002d56;">⬅️ 返回預測首頁</a>
     <h1>⚙️ 中職預測王管理者</h1>
 
     <!-- 儲存維護一：資料庫名單 -->
@@ -66,7 +65,7 @@
         <div id="venue-list-display" style="font-size:0.95em; color:#333; background:#eee; padding:10px; border-radius:4px; font-weight:bold; line-height:1.5;">正在加載場地庫...</div>
     </div>
 
-    <!-- 日期排程控制列（今天、明天、後天） -->
+    <!-- 日期排程控制列 -->
     <h2 style="color:#007bff;">📅 核心控制：請選擇您要管理/結算的日期</h2>
     <div class="section-box" style="background:#edf2f7; border: 2px solid #007bff;">
         <div class="input-row">
@@ -88,7 +87,7 @@
         </form>
     </div>
 
-    <!-- 新增位置：玩家預測隊伍結果（已放在分數計算上方） -->
+    <!-- 玩家預測隊伍結果 -->
     <h2>📋 玩家今日預測隊伍結果</h2>
     <div class="section-box">
         <table>
@@ -242,10 +241,10 @@
         if(!teamPitchersDB[team]) teamPitchersDB[team] = [];
 
         if (action === 'add') {
-            if(!teamPitchersDB[team].includes(name)) { teamPitchersDB[team].push(name); alert(`💾 成功加入！`); }
+            if(!teamPitchersDB[team].includes(name)) { teamPitchersDB[team].push(name); alert('💾 成功加入！'); }
         } else if (action === 'delete') {
             const idx = teamPitchersDB[team].indexOf(name);
-            if (idx > -1) { teamPitchersDB[team].splice(idx, 1); alert(`🗑️ 成功刪除！`); }
+            if (idx > -1) { teamPitchersDB[team].splice(idx, 1); alert('🗑️ 成功刪除！'); }
         }
         await db.collection('admin_config').doc('pitchers_db_v3').set(teamPitchersDB);
         displayCurrentPitchersText();
