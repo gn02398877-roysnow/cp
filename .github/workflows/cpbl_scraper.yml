@@ -19,7 +19,7 @@ jobs:
           node-version: 18
 
       - name: Install Dependencies
-        run: npm install axios firebase-admin
+        run: npm install axios jsdom firebase-admin
 
       - name: Run Scraper
         env:
@@ -27,6 +27,7 @@ jobs:
         run: |
           node -e "
           const axios = require('axios');
+          const { JSDOM } = require('jsdom');
           const admin = require('firebase-admin');
 
           const serviceAccount = JSON.parse(process.env.FIREBASE_KEY);
@@ -35,48 +36,60 @@ jobs:
 
           async function scrape() {
             try {
-              // 統一取得台灣日期的各種格式
+              // 1. 抓取中職官網首頁 HTML
+              const res = await axios.get('https://www.cpbl.com.tw/', {
+                headers: { 
+                  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' 
+                }
+              });
+              
+              const dom = new JSDOM(res.data);
+              const doc = dom.window.document;
+
+              // 2. 定位官網今日賽事的大框框
+              const gameElements = doc.querySelectorAll('.schedule_c_box');
+              let gamesData = [];
+
+              gameElements.forEach((el) => {
+                // 抓取球場 (位於框框內的 .venue 或 .game_place)
+                const venue = el.querySelector('.venue')?.textContent?.trim() || '未定球場';
+                
+                // 抓取客隊資訊 (.team_c_box.away)
+                const awayBox = el.querySelector('.team_c_box.away');
+                const awayTeam = awayBox?.querySelector('.team_name')?.textContent?.trim() || '客隊';
+                const awayPitcher = awayBox?.querySelector('.pitcher')?.textContent?.trim() || '未定';
+
+                // 抓取主隊資訊 (.team_c_box.home)
+                const homeBox = el.querySelector('.team_c_box.home');
+                const homeTeam = homeBox?.querySelector('.team_name')?.textContent?.trim() || '主隊';
+                const homePitcher = homeBox?.querySelector('.pitcher')?.textContent?.trim() || '未定';
+
+                // 只要有隊伍名稱，就塞進今日比賽名單
+                if (awayTeam !== '客隊' && homeTeam !== '主隊') {
+                  gamesData.push({
+                    awayTeam,
+                    awayPitcher: awayPitcher.replace('先發:', '').trim(),
+                    homeTeam,
+                    homePitcher: homePitcher.replace('先發:', '').trim(),
+                    venue
+                  });
+                }
+              });
+
+              // 3. 算出台灣今天的日期字串 (格式: 2026-07-29)
               const now = new Date();
               const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
               const twTime = new Date(utc + (3600000 * 8));
-              
               const year = twTime.getFullYear();
               const month = String(twTime.getMonth() + 1).padStart(2, '0');
               const day = String(twTime.getDate()).padStart(2, '0');
-              
-              const todayStr = \`\${year}-\${month}-\${day}\`; // 2026-07-29
-              const queryDate = \`\${year}/\${month}/\${day}\`; // 2026/07/29
+              const todayStr = \`\${year}-\\${month}-\\${day}\`;
 
-              console.log('正在為日期抓取官方賽程數據：', queryDate);
-
-              // 🎯 核心：直接對接中職官方後台賽程 API (依當年度月份抓取整月數據)
-              const res = await axios.get(\`https://www.cpbl.com.tw/schedule/index/\${year}/\${month}.html?KindCode=A\`, {
-                headers: { 'User-Agent': 'Mozilla/5.0' }
-              });
-
-              // 由於官方回傳的是乾淨的動態賽程 JSON，我們直接過濾出「今天」的賽事
-              let gamesData = [];
-              
-              if (res.data && res.data.data) {
-                // 過濾今天有進行的比賽
-                const todaysGamesRaw = res.data.data.filter(g => g.GameDate && g.GameDate.includes(queryDate));
-                
-                todaysGamesRaw.forEach(g => {
-                  gamesData.push({
-                    awayTeam: g.AwayTeamName || '客隊',
-                    awayPitcher: g.AwayPitcherName || '未定',
-                    homeTeam: g.HomeTeamName || '主隊',
-                    homePitcher: g.HomePitcherName || '未定',
-                    venue: g.PlaceName || '未定球場'
-                  });
-                });
-              }
-
-              // 寫入 Firebase 資料庫
+              // 4. 強制覆寫寫入 Firebase
               await db.collection('daily_games').doc(todayStr).set({ games: gamesData });
-              console.log(\`成功！今天共有 \${gamesData.length} 場比賽已寫入 Firebase！\`);
+              console.log(\`成功導入！今天共有 \${gamesData.length} 場比賽寫入 Firebase！\`);
             } catch (err) {
-              console.error('官方數據抓取失敗:', err);
+              console.error('抓取失敗:', err);
               process.exit(1);
             }
           }
