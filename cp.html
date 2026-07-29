@@ -4,51 +4,42 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>中職預測王 - 管理者後台 (cp)</title>
+    <!-- 載入 Firebase 必要的 SDK (v9 相容版) -->
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
     <style>
         body { font-family: sans-serif; background: #fdf6f0; color: #333; padding: 20px; }
-        .admin-box { max-width: 650px; margin: 0 auto 20px auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .admin-box { max-width: 650px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
         h1, h2 { color: #d9534f; text-align: center; }
         .game-result-input { margin-bottom: 20px; padding: 15px; border: 1px dashed #ccc; background: #fffdfa; }
         label { font-weight: bold; display: block; margin-bottom: 8px; }
-        textarea { width: 100%; height: 120px; padding: 10px; box-sizing: border-box; border-radius: 4px; border: 1px solid #ccc; font-size: 1em; }
         select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; }
         button { width: 100%; padding: 12px; background: #d9534f; color: white; border: none; border-radius: 4px; font-size: 1.1em; cursor: pointer; margin-top: 15px; }
         button:hover { background: #c9302c; }
-        .btn-blue { background: #002d56; }
-        .btn-blue:hover { background: #004080; }
-        .no-game-msg { text-align: center; color: gray; font-weight: bold; padding: 10px; }
+        .no-game-msg { text-align: center; color: red; font-weight: bold; padding: 20px; }
     </style>
 </head>
 <body>
 
 <div class="admin-box">
-    <h2>📋 步驟一：快速貼上今日官方賽程</h2>
-    <p style="color:#666; font-size:0.9em;">請去中職官網複製今天的對戰組合區塊文字，直接整段貼在下方：</p>
-    <textarea id="paste-input" placeholder="例如貼上：&#10;228 VS 大巨蛋 18:35 客場先發 曾仁和 主場先發 鈴木駿輔&#10;229 VS 亞太主 18:35 客場先發 江承諺 主場先發 喬登"></textarea>
-    <button type="button" class="btn-blue" onclick="parseAndUploadGames()">🚀 解析並推送到首頁</button>
-</div>
-
-<div class="admin-box">
-    <h1>⚙️ 步驟二：管理者賽果結算系統</h1>
+    <h1>⚙️ 管理者賽果結算系統 (cp)</h1>
     <div id="settle-date" style="text-align:center; color:#666; margin-bottom:15px;"></div>
     
     <form id="result-form">
-        <div id="dynamic-settle-inputs"><p class="no-game-msg">請先完成步驟一導入賽事，或等待資料載入...</p></div>
+        <div id="dynamic-settle-inputs"><p style="color:gray; text-align:center;">正在同步資料庫今日賽事... ⏳</p></div>
         <button type="submit" id="settle-btn" disabled>🏆 確認結算並更新分數</button>
     </form>
 </div>
 
 <script>
-    // ⚠️ 務必替換成你在 Firebase 取得的真正連接金鑰 ⚠️
+    // 🎯 金鑰已自動幫你對齊，請務必把完整的 appId 補上即可！
     const firebaseConfig = {
         apiKey: "AIzaSyCkh2tbXRSUX1nh7XEdpMMs6mUZX5TsPCY",
         authDomain: "cpbl-90cce.firebaseapp.com",
         projectId: "cpbl-90cce",
         storageBucket: "cpbl-90cce.firebasestorage.app",
         messagingSenderId: "910757077086",
-        appId: "你的應用程式appId" // 這裡也要補上完整的 appId 喔！
+        appId: "你的完整appId" // 👈 這裡請補上你在 Firebase 畫面複製到的完整 appId 喔！
     };
     
     firebase.initializeApp(firebaseConfig);
@@ -69,14 +60,16 @@
 
     let loadedGames = [];
 
-    // 監聽當前資料庫中已有的賽事，渲染至結算選單
+    // 當網頁打開時，自動去讀取 Firebase 資料庫裡面的今日賽程
     window.onload = function() {
+        const settleContainer = document.getElementById('dynamic-settle-inputs');
+        
         db.collection('daily_games').doc(todayStr).onSnapshot((doc) => {
-            const settleContainer = document.getElementById('dynamic-settle-inputs');
-            if(doc.exists && doc.data().games && doc.data().games.length > 0) {
+            if (doc.exists && doc.data().games && doc.data().games.length > 0) {
                 loadedGames = doc.data().games;
                 settleContainer.innerHTML = '';
                 
+                // 根據自動抓到的比賽，自動生成對應的贏家下拉選單
                 loadedGames.forEach((game, index) => {
                     settleContainer.innerHTML += `
                         <div class="game-result-input">
@@ -92,85 +85,16 @@
                 });
                 document.getElementById('settle-btn').disabled = false;
             } else {
-                settleContainer.innerHTML = '<div class="no-game-msg">今日尚未導入任何比賽組合。</div>';
+                settleContainer.innerHTML = '<div class="no-game-msg">今日資料庫尚無比賽資料。<br><small style="color:gray;font-weight:normal;">請確認 GitHub Actions 的 LINE TODAY 爬蟲是否有成功亮綠燈。</small></div>';
                 document.getElementById('settle-btn').disabled = true;
             }
+        }, (error) => {
+            console.error(error);
+            settleContainer.innerHTML = '<div class="no-game-msg">載入失敗，請檢查金鑰與 Firebase 權限。</div>';
         });
     };
 
-    // 🎯 核心演算法：點擊後自動把複製貼上的火星文轉換成資料格式
-    async function parseAndUploadGames() {
-        const text = document.getElementById('paste-input').value.trim();
-        if(!text) return alert("請先貼上從官方複製下來的文字！");
-
-        // 固定中職球隊隊名池，自動比對用
-        const teamPool = ["中信兄弟", "兄弟", "味全龍", "味全", "樂天桃猿", "樂天", "統一7-ELEVEn獅", "統一獅", "統一", "富邦悍將", "富邦", "台鋼雄鷹", "台鋼"];
-        // 固定球場池
-        const venues = ["大巨蛋", "台北大巨蛋", "亞太", "亞太主", "樂天桃園", "桃園", "天母", "新莊", "洲際", "台南", "澄清湖", "花蓮", "台東"];
-
-        // 依換行切割成每場比賽
-        const lines = text.split('\n');
-        let parsedGames = [];
-
-        lines.forEach(line => {
-            if(!line.trim() || !line.includes('VS')) return;
-            
-            let matchedTeams = [];
-            teamPool.forEach(t => {
-                if(line.includes(t) && !matchedTeams.includes(t)) matchedTeams.push(t);
-            });
-            
-            // 防呆：如果複製文字沒隊名，就嘗試切分抓取
-            let away = matchedTeams[0] || "客隊";
-            let home = matchedTeams[1] || "主隊";
-
-            let venue = "未定球場";
-            venues.forEach(v => {
-                if(line.includes(v)) venue = v;
-            });
-
-            // 用正則表達式撈出先發投手名字
-            let awayPitcher = "未定";
-            let homePitcher = "未定";
-            
-            const pitcherMatches = line.match(/(?:先發|客場先發|主場先發)\s*([^\s\d]+)/g) || [];
-            if(pitcherMatches.length >= 2) {
-                awayPitcher = pitcherMatches[0].replace(/(先發|客場先發|主場先發)/, '').trim();
-                homePitcher = pitcherMatches[1].replace(/(先發|客場先發|主場先發)/, '').trim();
-            } else {
-                // 次要比對法
-                const parts = line.split(/\s+/);
-                if(parts.length > 4) {
-                    awayPitcher = parts[parts.length - 2] || "未定";
-                    homePitcher = parts[parts.length - 1] || "未定";
-                }
-            }
-
-            parsedGames.push({
-                awayTeam: away,
-                awayPitcher: awayPitcher,
-                homeTeam: home,
-                homePitcher: homePitcher,
-                venue: venue
-            });
-        });
-
-        if(parsedGames.length === 0) {
-            // 如果比對演算法太嚴格，直接給一個預設的手動填入彈出視窗
-            alert("未能精準解析文字格式！請確保包含 'VS' 字樣，或分行貼上。");
-            return;
-        }
-
-        try {
-            await db.collection('daily_games').doc(todayStr).set({ games: parsedGames });
-            alert(`🎉 成功解析並上傳今日 ${parsedGames.length} 場比賽！首頁已同步更新！`);
-            document.getElementById('paste-input').value = '';
-        } catch (err) {
-            alert("寫入資料庫失敗，請確認 Firebase 安全性規則已開放。");
-        }
-    }
-
-    // 結算扣獎邏輯
+    // 點擊確認結算後，會自動抓取大家在 predictions 裡的預測進行比對，並幫贏的人加分
     document.getElementById('result-form').addEventListener('submit', async function(e) {
         e.preventDefault();
         if (loadedGames.length === 0) return;
@@ -183,25 +107,40 @@
 
         try {
             const snapshot = await db.collection('predictions').where('date', '==', todayStr).get();
-            if (snapshot.empty) return alert("今天沒有任何人登記預測。");
+            if (snapshot.empty) return alert("今天沒有任何人登記預測，無需結算。");
 
             const batch = db.batch();
+            let hasUpdates = false;
+
             snapshot.forEach(doc => {
                 const p = doc.data();
                 let points = 0;
+                
+                // 核對每一場的選擇是否跟實際贏家相同
                 for (const gid in rightAnswers) {
-                    if (p.choices[gid] && p.choices[gid] === rightAnswers[gid]) points++;
+                    if (p.choices && p.choices[gid] === rightAnswers[gid]) {
+                        points++;
+                    }
                 }
+                
+                // 如果有猜對，就在 'user' 集合中對應的玩家 document ID 加上分數
                 if (points > 0) {
+                    hasUpdates = true;
                     batch.update(db.collection('user').doc(p.player), {
                         score: firebase.firestore.FieldValue.increment(points)
                     });
                 }
             });
-            await batch.commit();
-            alert("🎉 今日分數核對完成！排行榜已更新！");
+
+            if (hasUpdates) {
+                await batch.commit();
+                alert("🎉 今日分數核對完成！排行榜已秒速更新！");
+            } else {
+                alert("結算完成！今天大家都沒猜中，排行榜分數維持不變。");
+            }
         } catch (err) {
-            alert("結算失敗，請檢查網路。");
+            console.error(err);
+            alert("結算失敗，請檢查網路連線或權限設定。");
         }
     });
 </script>
