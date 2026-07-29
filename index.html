@@ -3,59 +3,67 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CPBL 中職勝場預測王</title>
+    <title>⚾ 中職勝場預測王 🏆</title>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f4f7f6; color: #333; margin: 0; padding: 20px; }
-        .container { max-width: 900px; margin: 0 auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
-        h1, h2 { text-align: center; color: #002d56; margin-bottom: 5px; }
-        .date-display { text-align: center; color: #666; font-size: 1.1em; margin-bottom: 20px; font-weight: 500; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        .header-box { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #002d56; padding-bottom: 10px; margin-bottom: 20px; }
+        h1 { color: #002d56; margin: 0; font-size: 1.8em; }
+        .date-display { text-align: center; color: #666; font-size: 1.2em; margin-bottom: 25px; font-weight: bold; }
         
-        /* 鑲嵌視窗樣式 */
-        .iframe-container { width: 100%; height: 500px; border: 2px solid #002d56; border-radius: 8px; overflow: hidden; margin-bottom: 30px; box-shadow: inset 0 2px 8px rgba(0,0,0,0.1); }
-        iframe { width: 100%; height: 100%; border: none; }
+        /* 進入管理端按鈕 */
+        .admin-btn { background: #e74c3c; color: white; padding: 10px 18px; border: none; border-radius: 6px; font-size: 0.9.5em; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        .admin-btn:hover { background: #c0392b; }
         
-        .form-group { margin-bottom: 15px; }
-        .game-row { display: flex; gap: 15px; margin-bottom: 10px; }
-        .game-row div { flex: 1; }
-        label { display: block; margin-bottom: 5px; font-weight: bold; }
-        select, input { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
-        button { width: 100%; padding: 12px; background: #002d56; color: white; border: none; border-radius: 4px; font-size: 1em; cursor: pointer; transition: 0.3s; }
-        button:hover { background: #004080; }
+        /* 今日賽事方框 */
+        .games-frame { border: 2px solid #002d56; border-radius: 8px; padding: 20px; background: #fafafa; margin-bottom: 30px; }
+        .games-frame h3 { margin-top: 0; color: #002d56; text-align: center; border-bottom: 1px solid #ddd; padding-bottom: 10px; }
+        .game-card { border: 1px solid #e0e0e0; border-radius: 6px; padding: 15px; margin-bottom: 15px; background: white; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        .game-card:last-child { margin-bottom: 0; }
+        .game-info { display: flex; justify-content: space-between; align-items: center; }
+        .team { width: 40%; text-align: center; font-weight: bold; font-size: 1.1em; }
+        .vs { width: 20%; text-align: center; color: #888; font-style: italic; font-weight: bold; }
+        .venue { text-align: center; margin-top: 8px; color: #666; font-size: 0.9em; }
+        .no-game { text-align: center; color: #999; font-size: 1.2em; padding: 20px; font-weight: bold; }
+        
+        .form-group { margin-bottom: 18px; }
+        label { display: block; margin-bottom: 6px; font-weight: bold; color: #002d56; }
+        select, input { width: 100%; padding: 11px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; font-size: 1em; }
+        .submit-btn { width: 100%; padding: 14px; background: #002d56; color: white; border: none; border-radius: 4px; font-size: 1.1em; cursor: pointer; transition: 0.3s; font-weight: bold; }
+        .submit-btn:hover { background: #004080; }
         
         table { width: 100%; border-collapse: collapse; margin-top: 20px; }
         th, td { border: 1px solid #ddd; padding: 12px; text-align: center; }
         th { background-color: #002d56; color: white; }
         tr:nth-child(even) { background-color: #f2f2f2; }
-        
-        /* 管理端跳轉按鈕 */
-        .admin-nav-box { text-align: right; margin-bottom: 15px; }
-        .admin-btn { background: #e74c3c; color: white; padding: 8px 15px; text-decoration: none; border-radius: 4px; font-size: 0.9em; font-weight: bold; }
-        .admin-btn:hover { background: #c0392b; }
+        .status-badge { font-size: 1.2em; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <!-- 管理端前台跳轉按鈕 -->
-    <div class="admin-nav-box">
-        <a href="cp.html" class="admin-btn">⚙️ 進入管理端後台</a>
+    <!-- 最上方標題與密碼控管按鈕 -->
+    <div class="header-box">
+        <h1>⚾ 中職勝場預測王 🏆</h1>
+        <button class="admin-btn" onclick="goToAdmin()">⚙️ 進入管理端後台</button>
     </div>
 
-    <h1>⚾ CPBL 中職勝場預測王</h1>
+    <!-- 下面顯示今天的日期 -->
     <div class="date-display" id="current-date">📅 讀取日期中...</div>
     
-    <!--  LINE TODAY 的中職賽程專屬網址 -->
-<div class="iframe-container">
-    <iframe src="https://today.line.me/tw/v3/baseball/seasons/CPBL-2026-oB/schedule?gad_source=1&gad_campaignid=20622485474&gbraid=0AAAAAqSC1JBWghT_WLbj0k_jL9W6Yavxx&gclid=CjwKCAjwpqHTBhAcEiwAj2AfujSGeDN8k5LdFws52bsAcVzmfxAuk6rDxeKYOYOWdjucQx6sxpDfbhoClAAQAvD_BwE"></iframe>
-</div>
+    <!-- 再下面方框顯示今日比賽場次 -->
+    <div class="games-frame">
+        <h3>今日比賽場次</h3>
+        <div id="games-list"><div class="no-game">正在讀取今日賽事資料... ⏳</div></div>
+    </div>
 
-    <!-- 2. 中間預測登記表單 -->
+    <!-- 登記預測欄位 -->
     <h2>登記今日預測</h2>
     <form id="prediction-form">
         <div class="form-group">
-            <label for="player">1. 選擇預測人：</label>
+            <label for="player">選擇預測人</label>
             <select id="player" required>
                 <option value="">-- 請選擇你的名字 --</option>
                 <option value="柚子">柚子</option>
@@ -67,71 +75,31 @@
             </select>
         </div>
 
-        <div class="form-group" style="background: #f9f9f9; padding: 15px; border-radius: 6px; border: 1px solid #eee;">
-            <label style="color:#002d56; font-size:1.1em; margin-bottom:10px;">2. 請對照上方官網賽程，輸入今日預測獲勝隊伍：</label>
-            
-            <div class="game-row">
-                <div>
-                    <label>【第一場預測勝隊】</label>
-                    <select class="game-predict" data-game-id="game1">
-                        <option value="無比賽">-- 今日無此場次 --</option>
-                        <option value="中信兄弟">中信兄弟</option>
-                        <option value="統一7-ELEVEn獅">統一7-ELEVEn獅</option>
-                        <option value="樂天桃猿">樂天桃猿</option>
-                        <option value="富邦悍將">富邦悍將</option>
-                        <option value="味全龍">味全龍</option>
-                        <option value="台鋼雄鷹">台鋼雄鷹</option>
-                    </select>
-                </div>
-                <div>
-                    <label>【第二場預測勝隊】</label>
-                    <select class="game-predict" data-game-id="game2">
-                        <option value="無比賽">-- 今日無此場次 --</option>
-                        <option value="中信兄弟">中信兄弟</option>
-                        <option value="統一7-ELEVEn獅">統一7-ELEVEn獅</option>
-                        <option value="樂天桃猿">樂天桃猿</option>
-                        <option value="富邦悍將">富邦悍將</option>
-                        <option value="味全龍">味全龍</option>
-                        <option value="台鋼雄鷹">台鋼雄鷹</option>
-                    </select>
-                </div>
-                <div>
-                    <label>【第三場預測勝隊】</label>
-                    <select class="game-predict" data-game-id="game3">
-                        <option value="無比賽">-- 今日無此場次 --</option>
-                        <option value="中信兄弟">中信兄弟</option>
-                        <option value="統一7-ELEVEn獅">統一7-ELEVEn獅</option>
-                        <option value="樂天桃猿">樂天桃猿</option>
-                        <option value="富邦悍將">富邦悍將</option>
-                        <option value="味全龍">味全龍</option>
-                        <option value="台鋼雄鷹">台鋼雄鷹</option>
-                    </select>
-                </div>
-            </div>
-        </div>
+        <div id="predict-choices-area"></div>
 
         <div class="form-group">
-            <label for="password">3. 輸入個人防呆密碼：</label>
-            <input type="password" id="password" placeholder="請輸入密碼以防止別人幫你亂寫" required>
+            <label for="password">防呆密碼</label>
+            <input type="password" id="password" placeholder="請輸入密碼以防止別人幫你亂填寫" required>
         </div>
 
-        <button type="submit">🚀 送出預測結果</button>
+        <button type="submit" class="submit-btn" id="submit-btn" disabled>送出預測結果</button>
     </form>
 
-    <hr style="margin: 30px 0; border: 0; border-top: 1px solid #eee;">
+    <hr style="margin: 40px 0; border: 0; border-top: 1px solid #eee;">
 
-    <!-- 3. 最下面顯示每個人的分數 -->
+    <!-- 最下面目前累積積分排行榜 -->
     <h2>🏆 目前累積積分排行榜</h2>
     <table>
         <thead>
             <tr>
                 <th>名次</th>
                 <th>玩家</th>
+                <th>今日預測了沒</th>
                 <th>總命中勝場數</th>
             </tr>
         </thead>
         <tbody id="scoreboard">
-            <tr><td colspan="3" style="color:gray;">正在載入排行榜玩家...</td></tr>
+            <tr><td colspan="4" style="color:gray;">正在載入排行榜狀態...</td></tr>
         </tbody>
     </table>
 </div>
@@ -149,31 +117,109 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
 
-    function getTaipeiDateString() {
-        const d = new Date();
-        const utc = d.getTime() + (d.getTimezoneOffset() * 60000);
-        const nd = new Date(utc + (3600000 * 8));
-        const year = nd.getFullYear();
-        const month = String(nd.getMonth() + 1).padStart(2, '0');
-        const day = String(nd.getDate()).padStart(2, '0');
-        return `${year}-${month}-${day}`;
-    }
-
-    const todayStr = getTaipeiDateString();
-
     window.onload = function() {
         const today = new Date();
         document.getElementById('current-date').innerText = `📅 今天是：${today.toLocaleDateString('zh-TW', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })}`;
-        loadScoreboard();
+        
+        loadGamesData();
     };
 
-    function loadScoreboard() {
+    // 進入管理端，需驗證密碼 6666
+    function goToAdmin() {
+        const pw = prompt("請輸入管理端密碼：");
+        if (pw === "6666") {
+            window.location.href = "cp.html";
+        } else if (pw !== null) {
+            alert("密碼錯誤，拒絕進入！❌");
+        }
+    }
+
+    let hasGamesActive = false;
+
+    function loadGamesData() {
+        const gamesList = document.getElementById('games-list');
+        const predictArea = document.getElementById('predict-choices-area');
+
+        db.collection('admin_config').doc('current_game').onSnapshot((doc) => {
+            gamesList.innerHTML = '';
+            predictArea.innerHTML = '';
+
+            if (!doc.exists || !doc.data().games || doc.data().games.length === 0) {
+                gamesList.innerHTML = '<div class="no-game">今日尚無比賽 🛌</div>';
+                document.getElementById('submit-btn').disabled = true;
+                hasGamesActive = false;
+                loadScoreboardData([]);
+                return;
+            }
+
+            const games = doc.data().games;
+            hasGamesActive = true;
+            predictArea.innerHTML = `<label>選擇預測勝隊</label><div style="background:#f9f9f9; padding:15px; border-radius:6px; border:1px solid #eee; margin-bottom:15px;">`;
+
+            games.forEach((game, index) => {
+                // 渲染今日賽事方框
+                gamesList.innerHTML += `
+                    <div class="game-card">
+                        <div style="text-align:center; font-weight:bold; color:#666; font-size:0.85em; margin-bottom:5px;">場次 ${index+1}</div>
+                        <div class="game-info">
+                            <div class="team">${game.awayTeam}<br><small style="color:#777;font-weight:normal;">先發: ${game.awayPitcher}</small></div>
+                            <div class="vs">VS</div>
+                            <div class="team">${game.homeTeam}<br><small style="color:#777;font-weight:normal;">先發: ${game.homePitcher}</small></div>
+                        </div>
+                        <div class="venue">📍 球場：${game.venue}</div>
+                    </div>
+                `;
+
+                // 渲染登記預測勝隊下拉選單
+                predictArea.firstChild.nextSibling.innerHTML += `
+                    <div style="margin-bottom: 12px;">
+                        <span style="font-weight:bold; font-size:0.9em; color:#555;">場次 ${index+1} 勝隊：</span>
+                        <select class="game-predict" data-game-id="game${index+1}" required>
+                            <option value="">-- 請選擇勝出隊伍 --</option>
+                            <option value="${game.awayTeam}">${game.awayTeam}</option>
+                            <option value="${game.homeTeam}">${game.homeTeam}</option>
+                        </select>
+                    </div>
+                `;
+            });
+            
+            predictArea.innerHTML += `</div>`;
+            document.getElementById('submit-btn').disabled = false;
+            
+            // 拿到賽程後，去抓取玩家預測狀態來決定打勾打叉
+            db.collection('today_predictions').onSnapshot((snapshot) => {
+                let predictedPlayers = [];
+                snapshot.forEach(pDoc => {
+                    predictedPlayers.push(pDoc.id); // 收集今天有預測的玩家名稱
+                });
+                loadScoreboardData(predictedPlayers);
+            });
+        });
+    }
+
+    function loadScoreboardData(predictedPlayers) {
         const scoreboard = document.getElementById('scoreboard');
         db.collection('user').orderBy('score', 'desc').onSnapshot((snapshot) => {
             scoreboard.innerHTML = '';
             let rank = 1;
             snapshot.forEach((doc) => {
-                scoreboard.innerHTML += `<tr><td>${rank++}</td><td>${doc.id}</td><td><strong>${doc.data().score || 0}</strong> 分</td></tr>`;
+                const playerName = doc.id;
+                // 判斷今日預測了沒：如果有比賽且名字在今日預測名單內打勾，沒預測打叉；如果根本沒比賽就顯示 -
+                let statusBadge = `<span class="status-badge" style="color:#e74c3c;">❌</span>`;
+                if (!hasGamesActive) {
+                    statusBadge = `<span style="color:#aaa;">-</span>`;
+                } else if (predictedPlayers.includes(playerName)) {
+                    statusBadge = `<span class="status-badge" style="color:#2ecc71;">✅</span>`;
+                }
+
+                scoreboard.innerHTML += `
+                    <tr>
+                        <td>${rank++}</td>
+                        <td>${playerName}</td>
+                        <td>${statusBadge}</td>
+                        <td><strong>${doc.data().score || 0}</strong> 分</td>
+                    </tr>
+                `;
             });
         });
     }
@@ -188,10 +234,10 @@
             choices[select.getAttribute('data-game-id')] = select.value;
         });
 
-        db.collection('predictions').doc(`${todayStr}_${player}`).set({
-            player: player, password: password, choices: choices, date: todayStr
+        db.collection('today_predictions').doc(player).set({
+            player: player, password: password, choices: choices
         })
-        .then(() => alert(`🎉 ${player}！你的今日預測已成功提交！`))
+        .then(() => alert(`🎉 ${player}！你的今日預測已成功登记打勾！`))
         .catch(() => alert("登記失敗，請檢查網路。"));
     });
 </script>
