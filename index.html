@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CPBL 中職勝場預測王</title>
-    <!-- 載入 Firebase 必要的 SDK -->
+    <!-- 載入 Firebase 必要的 SDK (v9 相容版) -->
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
     <style>
@@ -96,9 +96,9 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
 
-    // 儲存解析出來的今日球賽全域變數
     let globalTodayGames = [];
 
+    // 取得統一的台北時間日期字串 (格式: 2026-07-29)
     function getTaipeiDateString() {
         const d = new Date();
         const utc = d.getTime() + (d.getTimezoneOffset() * 60000);
@@ -120,7 +120,7 @@
         loadScoreboard();
     }
 
-    // 🎯 核心：繞過 CORS 直接抓取中職首頁並解析
+    // 繞過 CORS 直接即時對接中職官網 HTML
     async function fetchCPBLGames() {
         const gamesList = document.getElementById('games-list');
         const predictChoices = document.getElementById('predict-choices');
@@ -135,7 +135,7 @@
             const parser = new DOMParser();
             const doc = parser.parseFromString(data.contents, 'text/html');
 
-            // 抓取今日賽事的大區塊
+            // 定位今日賽事的外框
             const gameElements = doc.querySelectorAll('.schedule_c_box');
             globalTodayGames = [];
 
