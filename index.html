@@ -10,12 +10,11 @@
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f4f7f6; color: #333; margin: 0; padding: 20px; }
         .container { max-width: 800px; margin: 0 auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); position: relative; }
         
-        /* 標題放置中央 */
         h1 { color: #002d56; text-align: center; margin-top: 10px; margin-bottom: 20px; font-size: 2.2em; }
         h2 { text-align: center; color: #002d56; }
         .date-display { text-align: center; color: #666; font-size: 1.2em; margin-bottom: 25px; font-weight: bold; }
         
-        /* 頁面右下角懸浮固定（浮動）的純齒輪按鈕 */
+        /* 浮動純齒輪按鈕 */
         .floating-admin-btn { 
             position: fixed; 
             bottom: 30px; 
@@ -43,7 +42,13 @@
         .game-card { border: 1px solid #e0e0e0; border-radius: 6px; padding: 20px; margin-bottom: 15px; background: white; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
         .game-card:last-child { margin-bottom: 0; }
         .game-info { display: flex; justify-content: space-between; align-items: center; }
+        
+        /* 主客隊顯示樣式修正 */
         .team { width: 40%; text-align: center; font-weight: bold; font-size: 1.3em; color: #002d56; }
+        .team-title { font-size: 0.65em; display: inline-block; padding: 2px 6px; border-radius: 3px; margin-bottom: 4px; font-weight: bold; }
+        .away-title { background: #e67e22; color: white; }
+        .home-title { background: #27ae60; color: white; }
+        
         .vs { width: 20%; text-align: center; color: #d9534f; font-style: italic; font-weight: bold; font-size: 1.2em; }
         .venue { text-align: center; margin-top: 12px; color: #333; font-size: 0.95em; font-weight: 500; }
         .no-game { text-align: center; color: #999; font-size: 1.2em; padding: 20px; font-weight: bold; }
@@ -139,14 +144,10 @@
         loadGamesData();
     };
 
-    // 進入後台新增密碼 6666 驗證
     function verifyAdminAccess() {
         const pw = prompt("請輸入管理端密碼：");
-        if (pw === "6666") {
-            window.location.href = "cp.html";
-        } else if (pw !== null) {
-            alert("密碼錯誤，拒絕進入！❌");
-        }
+        if (pw === "6666") { window.location.href = "cp.html"; }
+        else if (pw !== null) { alert("密碼錯誤，拒絕進入！❌"); }
     }
 
     function loadGamesData() {
@@ -170,24 +171,36 @@
             predictArea.innerHTML = `<label>選擇預測勝隊</label><div style="background:#f9f9f9; padding:15px; border-radius:6px; border:1px solid #eee; margin-bottom:15px;">`;
 
             games.forEach((game, index) => {
+                // 渲染今日賽事：左邊固定顯示客隊，右邊固定顯示主隊
                 gamesList.innerHTML += `
                     <div class="game-card">
                         <div class="game-info">
-                            <div class="team">${game.awayTeam}<br><small style="font-size:0.75em; color:#777; font-weight:normal;">先發: ${game.awayPitcher}</small></div>
+                            <!-- 左邊：客隊 -->
+                            <div class="team">
+                                <span class="team-title away-title">客隊</span><br>
+                                ${game.awayTeam}<br>
+                                <small style="font-size:0.75em; color:#777; font-weight:normal;">先發: ${game.awayPitcher}</small>
+                            </div>
                             <div class="vs">VS</div>
-                            <div class="team">${game.homeTeam}<br><small style="font-size:0.75em; color:#777; font-weight:normal;">先發: ${game.homePitcher}</small></div>
+                            <!-- 右邊：主隊 -->
+                            <div class="team">
+                                <span class="team-title home-title">主隊</span><br>
+                                ${game.homeTeam}<br>
+                                <small style="font-size:0.75em; color:#777; font-weight:normal;">先發: ${game.homePitcher}</small>
+                            </div>
                         </div>
                         <div class="venue">📍 球場：${game.venue}</div>
                     </div>
                 `;
 
+                // 下拉選單顯示為：客隊名稱 VS 主隊名稱
                 predictArea.firstChild.nextSibling.innerHTML += `
                     <div style="margin-bottom: 12px;">
-                        <span style="font-weight:bold; font-size:0.95em;">場次 ${index+1}：</span>
+                        <span style="font-weight:bold; font-size:0.95em;">場次 ${index+1} (${game.awayTeam} VS ${game.homeTeam})：</span>
                         <select class="game-predict" data-game-id="game${index+1}" required>
                             <option value="">-- 請選擇勝出隊伍 --</option>
-                            <option value="${game.awayTeam}">${game.awayTeam}</option>
-                            <option value="${game.homeTeam}">${game.homeTeam}</option>
+                            <option value="${game.awayTeam}">${game.awayTeam} (客)</option>
+                            <option value="${game.homeTeam}">${game.homeTeam} (主)</option>
                         </select>
                     </div>
                 `;
@@ -198,9 +211,7 @@
             
             db.collection('today_predictions').onSnapshot((snapshot) => {
                 let predictedPlayers = [];
-                snapshot.forEach(pDoc => {
-                    predictedPlayers.push(pDoc.id);
-                });
+                snapshot.forEach(pDoc => { predictedPlayers.push(pDoc.id); });
                 loadScoreboardData(predictedPlayers);
             });
         });
