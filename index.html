@@ -8,16 +8,36 @@
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f4f7f6; color: #333; margin: 0; padding: 20px; }
-        .container { max-width: 800px; margin: 0 auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
-        .header-box { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #002d56; padding-bottom: 10px; margin-bottom: 20px; }
-        h1 { color: #002d56; margin: 0; font-size: 1.8em; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); position: relative; }
+        
+        /* 標題放置中央 */
+        h1 { color: #002d56; text-align: center; margin-top: 10px; margin-bottom: 20px; font-size: 2.2em; }
+        h2 { text-align: center; color: #002d56; }
         .date-display { text-align: center; color: #666; font-size: 1.2em; margin-bottom: 25px; font-weight: bold; }
         
-        /* 進入管理端按鈕：改為穩固的直接跳轉樣式 */
-        .admin-btn { background: #e74c3c; color: white; padding: 10px 18px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; text-decoration: none; display: inline-block; font-size: 0.95em; }
-        .admin-btn:hover { background: #c0392b; }
+        /* 頁面右下角懸浮固定（浮動）的純齒輪按鈕 */
+        .floating-admin-btn { 
+            position: fixed; 
+            bottom: 30px; 
+            right: 30px; 
+            background: #e74c3c; 
+            color: white; 
+            width: 60px; 
+            height: 60px; 
+            border-radius: 50%; 
+            border: none; 
+            font-size: 28px; 
+            cursor: pointer; 
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3); 
+            z-index: 9999; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center;
+            transition: transform 0.2s, background 0.2s;
+        }
+        .floating-admin-btn:hover { background: #c0392b; transform: scale(1.1); }
         
-        /* 今日賽事方框 - 徹底移除了任何灰色字體 */
+        /* 今日賽事方框 */
         .games-frame { border: 2px solid #002d56; border-radius: 8px; padding: 20px; background: #fafafa; margin-bottom: 30px; }
         .games-frame h3 { margin-top: 0; color: #002d56; text-align: center; border-bottom: 1px solid #ddd; padding-bottom: 10px; }
         .game-card { border: 1px solid #e0e0e0; border-radius: 6px; padding: 20px; margin-bottom: 15px; background: white; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
@@ -42,23 +62,19 @@
 </head>
 <body>
 
-<div class="container">
-    <div class="header-box">
-        <h1>⚾ 中職勝場預測王 🏆</h1>
-        <!-- 右上角直接跳轉管理端按鈕（點擊後由 cp.html 的 6666 守門） -->
-        <a href="cp.html" class="admin-btn">⚙️ 進入管理端後台</a>
-    </div>
+<!-- 浮動純齒輪按鈕 -->
+<button class="floating-admin-btn" onclick="verifyAdminAccess()" title="進入管理端後台">⚙️</button>
 
-    <!-- 下面顯示今天的日期 -->
+<div class="container">
+    <h1>⚾ 中職勝場預測王 🏆</h1>
+
     <div class="date-display" id="current-date">📅 讀取日期中...</div>
     
-    <!-- 再下面方框顯示今日比賽場次 -->
     <div class="games-frame">
         <h3>今日比賽賽程</h3>
         <div id="games-list"><div class="no-game">正在讀取今日賽事資料... ⏳</div></div>
     </div>
 
-    <!-- 登記今日預測表單 -->
     <h2>登記今日預測</h2>
     <form id="prediction-form">
         <div class="form-group">
@@ -74,11 +90,10 @@
             </select>
         </div>
 
-        <!-- 選擇預測勝隊（由 JS 根據後台發布的場次數量動態生成） -->
         <div id="predict-choices-area"></div>
 
         <div class="form-group">
-            <label for="password">防防呆密碼</label>
+            <label for="password">防呆密碼</label>
             <input type="password" id="password" placeholder="請輸入密碼以防止別人幫你亂填寫" required>
         </div>
 
@@ -87,21 +102,6 @@
 
     <hr style="margin: 40px 0; border: 0; border-top: 1px solid #eee;">
 
-    <!-- 分數上方新增：顯示玩家今日預測隊伍結果 -->
-    <h2>顯示玩家今日預測隊伍結果</h2>
-    <table>
-        <thead>
-            <tr id="summary-header">
-                <th>玩家</th>
-                <th>今日預測結果</th>
-            </tr>
-        </thead>
-        <tbody id="predictions-summary">
-            <tr><td colspan="2" style="color:gray;">目前尚無人提交今日預測...</td></tr>
-        </tbody>
-    </table>
-
-    <!-- 最下面是目前累積積分排行榜 -->
     <h2>🏆 目前累積積分排行榜</h2>
     <table>
         <thead>
@@ -125,20 +125,29 @@
         projectId: "cpbl-90cce",
         storageBucket: "cpbl-90cce.firebasestorage.app",
         messagingSenderId: "910757077086",
-        appId: "你的完整appId" // 👈 記得在此處補上你在 Firebase 取得的完整 appId 喔！
+        appId: "你的完整appId"
     };
     
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
 
     let hasGamesActive = false;
-    let activeGamesCount = 0;
 
     window.onload = function() {
         const today = new Date();
         document.getElementById('current-date').innerText = `📅 今天是：${today.toLocaleDateString('zh-TW', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })}`;
         loadGamesData();
     };
+
+    // 進入後台新增密碼 6666 驗證
+    function verifyAdminAccess() {
+        const pw = prompt("請輸入管理端密碼：");
+        if (pw === "6666") {
+            window.location.href = "cp.html";
+        } else if (pw !== null) {
+            alert("密碼錯誤，拒絕進入！❌");
+        }
+    }
 
     function loadGamesData() {
         const gamesList = document.getElementById('games-list');
@@ -148,29 +157,19 @@
             gamesList.innerHTML = '';
             predictArea.innerHTML = '';
 
-            // 如果後台沒發布比賽，或者清空了賽程，首頁直接顯示「今日尚無比賽」
             if (!doc.exists || !doc.data().games || doc.data().games.length === 0) {
                 gamesList.innerHTML = '<div class="no-game">今日尚無比賽 🛌</div>';
                 document.getElementById('submit-btn').disabled = true;
                 hasGamesActive = false;
-                activeGamesCount = 0;
-                updateSummaryTableHeader(0);
                 loadScoreboardData([]);
-                loadPredictionsSummary([]);
                 return;
             }
 
             const games = doc.data().games;
             hasGamesActive = true;
-            activeGamesCount = games.length;
-            
-            // 動態調整預測結果表格的欄位數量
-            updateSummaryTableHeader(activeGamesCount);
-
             predictArea.innerHTML = `<label>選擇預測勝隊</label><div style="background:#f9f9f9; padding:15px; border-radius:6px; border:1px solid #eee; margin-bottom:15px;">`;
 
             games.forEach((game, index) => {
-                // 1. 渲染今日賽事方框（已徹底移除任何「場次x」等灰色小字）
                 gamesList.innerHTML += `
                     <div class="game-card">
                         <div class="game-info">
@@ -182,7 +181,6 @@
                     </div>
                 `;
 
-                // 2. 渲染表單中對應數量的下拉選單
                 predictArea.firstChild.nextSibling.innerHTML += `
                     <div style="margin-bottom: 12px;">
                         <span style="font-weight:bold; font-size:0.95em;">場次 ${index+1}：</span>
@@ -198,56 +196,16 @@
             predictArea.innerHTML += `</div>`;
             document.getElementById('submit-btn').disabled = false;
             
-            // 即時同步今日所有玩家的預測狀態
             db.collection('today_predictions').onSnapshot((snapshot) => {
                 let predictedPlayers = [];
-                let predictionsList = [];
                 snapshot.forEach(pDoc => {
                     predictedPlayers.push(pDoc.id);
-                    predictionsList.push(pDoc.data());
                 });
                 loadScoreboardData(predictedPlayers);
-                loadPredictionsSummary(predictionsList);
             });
         });
     }
 
-    // 根據發布的比賽數量，動態調整「玩家預測隊伍結果」的表頭
-    function updateSummaryTableHeader(count) {
-        const header = document.getElementById('summary-header');
-        if (count === 0) {
-            header.innerHTML = `<th>玩家</th><th>今日預測結果</th>`;
-        } else {
-            let html = `<th>玩家</th>`;
-            for (let i = 1; i <= count; i++) {
-                html += `<th>場次 ${i} 預測</th>`;
-            }
-            header.innerHTML = html;
-        }
-    }
-
-    // 渲染分數上方的玩家今日下注詳情
-    function loadPredictionsSummary(predictions) {
-        const tbody = document.getElementById('predictions-summary');
-        tbody.innerHTML = '';
-        
-        if (predictions.length === 0) {
-            const colspan = activeGamesCount > 0 ? activeGamesCount + 1 : 2;
-            tbody.innerHTML = `<tr><td colspan="${colspan}" style="color:gray;">目前尚無人提交今日預測...</td></tr>`;
-            return;
-        }
-        
-        predictions.forEach(p => {
-            let html = `<tr><td><strong>${p.player}</strong></td>`;
-            for (let i = 1; i <= activeGamesCount; i++) {
-                html += `<td>${p.choices['game' + i] || '-'}</td>`;
-            }
-            html += `</tr>`;
-            tbody.innerHTML += html;
-        });
-    }
-
-    // 讀取排行榜並渲染「今日預測了沒」的綠勾或紅叉狀態
     function loadScoreboardData(predictedPlayers) {
         const scoreboard = document.getElementById('scoreboard');
         db.collection('user').orderBy('score', 'desc').onSnapshot((snapshot) => {
@@ -257,11 +215,8 @@
                 const name = doc.id;
                 let statusBadge = `<span style="color:#e74c3c; font-size:1.2em;">❌</span>`;
                 
-                if (!hasGamesActive) {
-                    statusBadge = `<span style="color:#aaa;">-</span>`; // 沒比賽時顯示橫槓
-                } else if (predictedPlayers.includes(name)) {
-                    statusBadge = `<span style="color:#2ecc71; font-size:1.2em;">✅</span>`; // 有預測時打綠勾
-                }
+                if (!hasGamesActive) statusBadge = `<span style="color:#aaa;">-</span>`;
+                else if (predictedPlayers.includes(name)) statusBadge = `<span style="color:#2ecc71; font-size:1.2em;">✅</span>`;
 
                 scoreboard.innerHTML += `
                     <tr>
@@ -275,12 +230,10 @@
         });
     }
 
-    // 表單提交登記
     document.getElementById('prediction-form').addEventListener('submit', function(e) {
         e.preventDefault();
         const player = document.getElementById('player').value;
         const password = document.getElementById('password').value;
-        
         let choices = {};
         document.querySelectorAll('.game-predict').forEach(select => {
             choices[select.getAttribute('data-game-id')] = select.value;
@@ -289,8 +242,8 @@
         db.collection('today_predictions').doc(player).set({
             player: player, password: password, choices: choices
         })
-        .then(() => alert(`🎉 ${player}！你的今日預測結果已成功提交！排行榜已為你打勾 ✅`))
-        .catch(() => alert("登記失敗，請檢查網路連線。"));
+        .then(() => alert(`🎉 ${player}！你的今日預測結果已成功提交！`))
+        .catch(() => alert("登記失敗！"));
     });
 </script>
 </body>
