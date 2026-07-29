@@ -84,14 +84,14 @@
 </div>
 
 <script>
-    // ⚠️ 務必替換成你在 Firebase 取得的真正連接金鑰 ⚠️
+    // 🎯 已自動幫你填入大部分正確金鑰，請務必把 appId 補齊即可！
     const firebaseConfig = {
         apiKey: "AIzaSyCkh2tbXRSUX1nh7XEdpMMs6mUZX5TsPCY",
         authDomain: "cpbl-90cce.firebaseapp.com",
         projectId: "cpbl-90cce",
         storageBucket: "cpbl-90cce.firebasestorage.app",
         messagingSenderId: "910757077086",
-        appId: "你的應用程式appId" // 記得補上你下載或複製到的完整 appId 喔！
+        appId: "你的完整appId" // 👈 這裡請補上你在 Firebase 畫面複製到的完整 appId 喔！
     };
     
     firebase.initializeApp(firebaseConfig);
@@ -118,14 +118,15 @@
         loadScoreboard();
     }
 
+    // 監聽 Firebase 裡由機器人塞進來的當日賽事
     function loadGamesFromFirebase() {
         const gamesList = document.getElementById('games-list');
         const predictChoices = document.getElementById('predict-choices');
 
         db.collection('daily_games').doc(todayStr).onSnapshot((doc) => {
             if (!doc.exists || !doc.data().games || doc.data().games.length === 0) {
-                gamesList.innerHTML = '<div class="no-game">今日管理員尚未同步賽程 🛌<br><small style="color:#bbb; font-size:0.7em;">請聯絡管理員貼上今日賽事</small></div>';
-                predictChoices.innerHTML = '<p style="color:gray;">目前尚無賽事，無法預測。</p>';
+                gamesList.innerHTML = '<div class="no-game">今日尚無比賽，或全自動機器人尚未執行 🛌<br><small style="color:#bbb; font-size:0.7em;">查詢日期: '+todayStr+'</small></div>';
+                predictChoices.innerHTML = '<p style="color:gray;">今天沒比賽，不用預測。</p>';
                 document.getElementById('submit-btn').disabled = true;
                 return;
             }
@@ -161,22 +162,19 @@
         });
     }
 
+    // 讀取排行榜玩家與分數
     function loadScoreboard() {
         const scoreboard = document.getElementById('scoreboard');
         db.collection('user').orderBy('score', 'desc').onSnapshot((snapshot) => {
             scoreboard.innerHTML = '';
             let rank = 1;
-            if(snapshot.empty) {
-                scoreboard.innerHTML = '<tr><td colspan="3" style="color:gray;">資料庫中尚無玩家分數資料。</td></tr>';
-                return;
-            }
             snapshot.forEach((doc) => {
                 const userData = doc.data();
                 scoreboard.innerHTML += `<tr><td>${rank++}</td><td>${doc.id}</td><td><strong>${userData.score}</strong> 分</td></tr>`;
             });
         }, (error) => {
             console.error(error);
-            scoreboard.innerHTML = '<tr><td colspan="3" style="color:red;">載入排行榜失敗，請檢查金鑰設定。</td></tr>';
+            scoreboard.innerHTML = '<tr><td colspan="3" style="color:red;">載入排行榜失敗，請檢查權限。</td></tr>';
         });
     }
 
