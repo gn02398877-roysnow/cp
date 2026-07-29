@@ -1,4 +1,4 @@
-name: CPBL Auto Scraper (LINE TODAY)
+name: CPBL Auto Scraper (LINE TODAY API)
 
 on:
   schedule:
@@ -36,7 +36,7 @@ jobs:
 
           async function scrape() {
             try {
-              // 1. 取得台灣時間的日期字串
+              // 1. 取得精準的台灣時間日期字串 (避免 GitHub 美國機房時區偷跑)
               const now = new Date();
               const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
               const twTime = new Date(utc + (3600000 * 8));
@@ -47,9 +47,10 @@ jobs:
 
               console.log('今日目標日期：', todayStr);
 
-              // 2. 直接請求 LINE TODAY 中職 2026 的賽程數據接口 (背後 API 數據)
-              // LINE TODAY 賽事分類為 cpbl，賽季為 CPBL-2026-oB
-              const res = await axios.get('https://today.line.me/tw/v3/baseball/seasons/CPBL-2026-oB/schedule', {
+              // 🎯 關鍵修正：這是 LINE TODAY 真正傳輸中職 2026 賽程的後台 API 數據網址！
+              const apiUrl = 'https://today.line.me/webapi/api/v3/sports/baseball/seasons/CPBL-2026-oB/schedule?timezone=GMT%2B08%3A00&country=TW&page=1&size=300';
+              
+              const res = await axios.get(apiUrl, {
                 headers: { 
                   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
                   'Accept': 'application/json'
@@ -58,19 +59,24 @@ jobs:
 
               let gamesData = [];
 
-              // 3. 解析 LINE TODAY 回傳的 JSON 結構
+              // 2. 解析 LINE TODAY 真正的數據結構
               if (res.data && res.data.content && res.data.content.games) {
                 const allGames = res.data.content.games;
                 
-                // 過濾出比賽日期等於今天的賽事
+                // 找出起迄時間符合今天日期的比賽
                 const todaysGames = allGames.filter(g => {
                   if (!g.startTime) return false;
+                  // 轉換成台灣時間日期來比對
                   const gDate = new Date(g.startTime);
-                  const gYear = gDate.getFullYear();
-                  const gMonth = String(gDate.getMonth() + 1).padStart(2, '0');
-                  const gDay = String(gDate.getDate()).padStart(2, '0');
+                  const gUtc = gDate.getTime() + (gDate.getTimezoneOffset() * 60000);
+                  const gTw = new Date(gUtc + (3600000 * 8));
+                  const gYear = gTw.getFullYear();
+                  const gMonth = String(gTw.getMonth() + 1).padStart(2, '0');
+                  const gDay = String(gTw.getDate()).padStart(2, '0');
                   return \`\${gYear}-\${gMonth}-\${gDay}\` === todayStr;
                 });
+
+                console.log(\`篩選到今日賽事共 \${todaysGames.length} 場\`);
 
                 todaysGames.forEach(g => {
                   gamesData.push({
@@ -83,9 +89,9 @@ jobs:
                 });
               }
 
-              // 4. 將資料強力寫入 Firebase 'daily_games' 集合
+              // 3. 寫入 Firebase 資料庫
               await db.collection('daily_games').doc(todayStr).set({ games: gamesData });
-              console.log(\`【大成功】從 LINE TODAY 成功抓取今日 \${gamesData.length} 場比賽，已同步至資料庫！\`);
+              console.log(\`【大成功】成功同步今日 \${gamesData.length} 場比賽至 Firebase！\`);
             } catch (err) {
               console.error('抓取失敗，錯誤細節:', err.message);
               process.exit(1);
