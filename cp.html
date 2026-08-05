@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
@@ -30,7 +30,6 @@
 <body>
 
 <div class="admin-box">
-    <!-- 👈 已將返回超連結精準修改為您的完整專案網址路徑 -->
     <a href="https://gn02398877-roysnow.github.io/cp/" style="display:inline-block; margin-bottom:15px; font-weight:bold; text-decoration:none; color:#002d56;">⬅️ 返回預測首頁</a>
     <h1>⚙️ 中職預測王管理者</h1>
 
@@ -141,13 +140,15 @@
     }
 
     window.onload = async function() {
+        const yesterdayStr = getTaipeiDateString(-1); // 👈 包含了昨天的選項
         const todayStr = getTaipeiDateString(0);
         const tomorrowStr = getTaipeiDateString(1);
         const dayAfterTomorrowStr = getTaipeiDateString(2);
         
         const dateSelect = document.getElementById('global-date-select');
         dateSelect.innerHTML = `
-            <option value="${todayStr}">今天 (${todayStr})</option>
+            <option value="${yesterdayStr}">昨天 (${yesterdayStr})</option>
+            <option value="${todayStr}" selected>今天 (${todayStr})</option>
             <option value="${tomorrowStr}">明天 (${tomorrowStr})</option>
             <option value="${dayAfterTomorrowStr}">後天 (${dayAfterTomorrowStr})</option>
         `;
