@@ -178,7 +178,7 @@
 
     function changeViewerDate(dir) {
         viewOffset += dir;
-        if(viewOffset < 0) viewOffset = 0; 
+        if(viewOffset < -1) viewOffset = -1; // 允許翻到昨天
         if(viewOffset > 2) viewOffset = 2; 
         renderViewerFrame();
     }
@@ -189,6 +189,7 @@
         const listEl = document.getElementById('games-list');
         
         let label = "今日";
+        if(viewOffset === -1) label = "昨日";
         if(viewOffset === 1) label = "明天";
         if(viewOffset === 2) label = "後天";
         titleEl.innerText = `${label}比賽賽程 (${targetDate})`;
@@ -268,7 +269,8 @@
                         if (!hasGames) statusBadge = `<span style="color:#aaa;">-</span>`;
                         else if (todayPredictedPlayers.includes(name)) statusBadge = `<span style="color:#2ecc71; font-size:1.2em;">✅</span>`;
                         
-                        document.getElementById(`badge-${name}`).innerHTML = statusBadge;
+                        const badgeEl = document.getElementById(`badge-${name}`);
+                        if(badgeEl) badgeEl.innerHTML = statusBadge;
                     });
 
                     scoreboard.innerHTML += `
