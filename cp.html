@@ -1,4 +1,4 @@
-
+<!DOCTYPE html>
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
@@ -18,6 +18,7 @@
         button:hover { background: #c9302c; }
         .btn-blue { background: #007bff; } .btn-blue:hover { background: #0056b3; }
         .btn-green { background: #2ecc71; } .btn-green:hover { background: #27ae60; }
+        .btn-orange { background: #e67e22; } .btn-orange:hover { background: #d35400; }
         table { width: 100%; border-collapse: collapse; margin-top: 15px; margin-bottom: 20px; }
         th, td { border: 1px solid #ddd; padding: 10px; text-align: center; }
         th { background: #d9534f; color: white; }
@@ -64,13 +65,19 @@
         <div id="venue-list-display" style="font-size:0.95em; color:#333; background:#eee; padding:10px; border-radius:4px; font-weight:bold; line-height:1.5;">正在加載場地庫...</div>
     </div>
 
-    <!-- 日期排程控制列 -->
+    <!-- 日期排程控制列與下注鎖定開關 -->
     <h2 style="color:#007bff;">📅 核心控制：請選擇您要管理/結算的日期</h2>
     <div class="section-box" style="background:#edf2f7; border: 2px solid #007bff;">
         <div class="input-row">
             <span style="font-weight:bold; font-size:1.1em;">目標管理日期：</span>
             <select id="global-date-select" style="font-size:1.1em; font-weight:bold; padding:8px 15px;" onchange="onDateSelectionChanged()">
             </select>
+        </div>
+        <!-- 手動封盤開關控制 -->
+        <div class="input-row" style="margin-top:15px; border-top:1px dashed #bbb; padding-top:15px; flex-wrap:wrap;">
+            <span style="font-weight:bold; font-size:1.05em;">下注開放狀態：</span>
+            <span id="lock-status-badge" style="font-weight:bold; font-size:1.1em; margin-right:15px; color:#2ecc71;">🟢 開放下注中</span>
+            <button type="button" id="toggle-lock-btn" class="btn-orange" onclick="toggleBettingLock()">🔒 手動封盤關閉下注</button>
         </div>
     </div>
 
@@ -87,7 +94,7 @@
     </div>
 
     <!-- 玩家預測隊伍結果 -->
-    <h2>📋 玩家今日預測隊伍結果</h2>
+    <h2>📋 玩家該日預測隊伍結果</h2>
     <div class="section-box">
         <table>
             <thead><tr id="summary-header"><th>玩家</th><th>該日預測結果</th></tr></thead>
@@ -130,6 +137,7 @@
     let activeSlotCount = 0; 
     let loadedCurrentGames = [];
     let currentSelectedDate = "";
+    let currentIsLocked = false;
     let unsubGames = null; let unsubPreds = null;
 
     function getTaipeiDateString(offsetDays = 0) {
@@ -140,7 +148,7 @@
     }
 
     window.onload = async function() {
-        const yesterdayStr = getTaipeiDateString(-1); // 👈 包含了昨天的選項
+        const yesterdayStr = getTaipeiDateString(-1);
         const todayStr = getTaipeiDateString(0);
         const tomorrowStr = getTaipeiDateString(1);
         const dayAfterTomorrowStr = getTaipeiDateString(2);
@@ -172,7 +180,31 @@
         
         unsubGames = db.collection('dates_schedule').doc(currentSelectedDate).onSnapshot((doc) => {
             const area = document.getElementById('settle-inputs-area');
+            const lockBadge = document.getElementById('lock-status-badge');
+            const lockBtn = document.getElementById('toggle-lock-btn');
             area.innerHTML = '';
+
+            if(!doc.exists) {
+                currentIsLocked = false;
+                lockBadge.innerHTML = "🔴 未發布賽程";
+                lockBadge.style.color = "#888";
+                lockBtn.disabled = true;
+            } else {
+                currentIsLocked = doc.data().isLocked || false;
+                lockBtn.disabled = false;
+                if(currentIsLocked) {
+                    lockBadge.innerHTML = "🔴 已關閉下注 (已封盤)";
+                    lockBadge.style.color = "#d9534f";
+                    lockBtn.innerHTML = "🔓 開放下注";
+                    lockBtn.className = "btn-green";
+                } else {
+                    lockBadge.innerHTML = "🟢 開放下注中";
+                    lockBadge.style.color = "#2ecc71";
+                    lockBtn.innerHTML = "🔒 手動封盤關閉下注";
+                    lockBtn.className = "btn-orange";
+                }
+            }
+
             if(!doc.exists || !doc.data().games || doc.data().games.length === 0) {
                 area.innerHTML = `<p style="color:gray; text-align:center;">此日期 (${currentSelectedDate}) 尚無賽程資料。</p>`;
                 document.getElementById('settle-btn').disabled = true;
@@ -215,6 +247,19 @@
                 tbody.innerHTML += html;
             });
         });
+    }
+
+    async function toggleBettingLock() {
+        if(!currentSelectedDate) return;
+        const newStatus = !currentIsLocked;
+        try {
+            await db.collection('dates_schedule').doc(currentSelectedDate).set({
+                isLocked: newStatus
+            }, { merge: true });
+            alert(newStatus ? `🔒 已成功將 [${currentSelectedDate}] 下注關閉 (已封盤)！` : `🔓 已成功將 [${currentSelectedDate}] 下注功能開啟！`);
+        } catch (e) {
+            alert("更新狀態失敗！");
+        }
     }
 
     async function loadPitchersDatabase() {
@@ -328,8 +373,11 @@
         });
 
         if(!confirm(`確定要將賽程正式發布至日期：${currentSelectedDate} 嗎？`)) return;
-        await db.collection('dates_schedule').doc(currentSelectedDate).set({ games: finalGames });
-        alert(`📢 賽程已成功綁定發布至日期：${currentSelectedDate}！`);
+        await db.collection('dates_schedule').doc(currentSelectedDate).set({ 
+            games: finalGames,
+            isLocked: false // 發布新賽程時預設開放下注
+        }, { merge: true });
+        alert(`📢 賽程已成功綁定發布至日期：${currentSelectedDate}！(預設開放下注)`);
         document.getElementById('dynamic-games-container').innerHTML = '';
         activeSlotCount = 0;
     });
