@@ -74,6 +74,7 @@
     <h1>⚾ 中職勝場預測王 🏆</h1>
     <div class="date-display" id="current-date">📅 讀取日期中...</div>
     
+    <!-- 賽程看版：支援左右切換日期 -->
     <div class="games-frame">
         <div class="frame-header">
             <button type="button" class="nav-arrow" onclick="changeViewerDate(-1)">◀</button>
@@ -178,8 +179,8 @@
 
     function changeViewerDate(dir) {
         viewOffset += dir;
-        if(viewOffset < -1) viewOffset = -1; // 允許翻到昨天
-        if(viewOffset > 2) viewOffset = 2; 
+        if(viewOffset < -1) viewOffset = -1; // 最早看昨天
+        if(viewOffset > 2) viewOffset = 2; // 最遠看後天
         renderViewerFrame();
     }
 
@@ -189,7 +190,7 @@
         const listEl = document.getElementById('games-list');
         
         let label = "今日";
-        if(viewOffset === -1) label = "昨日";
+        if(viewOffset === -1) label = "昨天";
         if(viewOffset === 1) label = "明天";
         if(viewOffset === 2) label = "後天";
         titleEl.innerText = `${label}比賽賽程 (${targetDate})`;
@@ -229,6 +230,14 @@
                 return;
             }
             
+            // 檢查管理員是否手動關閉下注 (封盤)
+            const isLocked = doc.data().isLocked || false;
+            if (isLocked) {
+                area.innerHTML = '<div style="background:#f8d7da; color:#721c24; padding:15px; border-radius:6px; font-weight:bold; text-align:center; margin-bottom:15px; font-size:1.15em; border:1px solid #f5c6cb;">🔒 該日期賽事已關閉下注 (已封盤/已開打)！目前無法登記預測。</div>';
+                btn.disabled = true;
+                return;
+            }
+
             activeGamesForPredict = doc.data().games;
             btn.disabled = false;
             area.innerHTML = `<label>選擇預測勝隊</label><div style="background:#f9f9f9; padding:15px; border-radius:6px; border:1px solid #eee; margin-bottom:15px;">`;
@@ -269,8 +278,7 @@
                         if (!hasGames) statusBadge = `<span style="color:#aaa;">-</span>`;
                         else if (todayPredictedPlayers.includes(name)) statusBadge = `<span style="color:#2ecc71; font-size:1.2em;">✅</span>`;
                         
-                        const badgeEl = document.getElementById(`badge-${name}`);
-                        if(badgeEl) badgeEl.innerHTML = statusBadge;
+                        document.getElementById(`badge-${name}`).innerHTML = statusBadge;
                     });
 
                     scoreboard.innerHTML += `
@@ -292,6 +300,14 @@
         const passwordInput = document.getElementById('password').value.trim();
         
         try {
+            // 提交前再次驗證是否已封盤
+            const scheduleSnap = await db.collection('dates_schedule').doc(pDate).get();
+            if (scheduleSnap.exists && scheduleSnap.data().isLocked) {
+                alert("🔒 該日期賽事已被管理員關閉下注！無法送出。");
+                onPredictDateChanged();
+                return;
+            }
+
             const userSnap = await db.collection('user').doc(player).get();
             if (!userSnap.exists) return alert(`資料庫找不到玩家【${player}】`);
             if (passwordInput !== (userSnap.data().password || "")) return alert(`❌ 防呆密碼驗證失敗！請輸入正確密碼！`);
